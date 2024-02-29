@@ -3,19 +3,19 @@
 #include "version.h"
 
 #ifdef STM32L031xx
-	#define USER_DATA_BASEADDR		0x08080000	// For STM32G0B1
-	#define EEPROM_SIZE				1024		// In bytes
-#elif defined(STM32L031xx)
+	#define USER_DATA_BASEADDR		0x08080000
+	#define EEPROM_SIZE				1024		// bytes
+#elif defined(STM32L071xx)
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L071
 #else
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
 
 #define ADDR_DEVICE_ID			USER_DATA_BASEADDR
-#define ADDR_DEVICE_FW			(ADDR_DEVICE_ID + 4)
-#define ADDR_DEVICE_RT			(ADDR_DEVICE_FW + 4)		// RT = Running Time, takes 4 bytes for day, month, year (12 bytes) + 4 bytes for seconds, minutes, hours (12 bytes) = 24 bytes total
-#define ADDR_SETTINGS_SIZE		(ADDR_DEVICE_RT + 4*3*2)
-#define ADDR_SETTINGS			(ADDR_SETTINGS_SIZE + 4)
+#define ADDR_DEVICE_FW			(USER_DATA_BASEADDR + 4)
+#define ADDR_DEVICE_RT			(USER_DATA_BASEADDR + 8)
+#define ADDR_SETTINGS_SIZE		(USER_DATA_BASEADDR + 12)
+#define ADDR_SETTINGS			(USER_DATA_BASEADDR + 16)
 
 #define ADDR_DEVICE_RT_OLD_1	(USER_DATA_BASEADDR + 16)
 #define ADDR_DEVICE_RT_OLD_2	(USER_DATA_BASEADDR + 64)
@@ -25,7 +25,6 @@
 #define DEVICE_ID_MIN 			(1 << 16)	// Minimum value for ID is 0x00010000
 #define DEVICE_FW_MIN 			(1 << 24)	// Minimum value for FW is 0x01000000
 
-//#define RESET_RTC_VALUES
 
 /*
  * DO NOT DELETE FROM CODE!
@@ -34,6 +33,12 @@
  */
 #ifdef OBSOLETE
 #define EEPROM_BASEADDR		0x08080000
+
+#define ADDR_IDE				((uint32_t)(EEPROM_BASEADDR + 0))
+#define ADDR_QUICK_SIGHTING		((uint32_t)(EEPROM_BASEADDR + 4))
+#define ADDR_AUTO_INVERSION		((uint32_t)(EEPROM_BASEADDR + 8))
+#define ADDR_AR_COLOR			((uint32_t)(EEPROM_BASEADDR + 12))
+#define ADDR_AR_BRIGHTNESS		((uint32_t)(EEPROM_BASEADDR + 16))
 
 #define ADDR_MARK				(EEPROM_BASEADDR + 0)
 #define ADDR_AMMO				(EEPROM_BASEADDR + 4)
@@ -55,29 +60,28 @@
 
 
 
-enum Status {
-	FLASH_EMPTY,
-	ID_WRONG,
-	ID_CORRECT,
-	FW_WRONG,
-	FW_CORRECT,
-	RT_NOT_FOUND,
-	RT_FOUND,
-	SETTINGS_SIZE_CORRECT,
-	SETTINGS_SIZE_WRONG,
-	SETTINGS_OK,
-	SETTINGS_OUT_OF_RANGE,
-	FLASH_WRITE_FAIL,
-	FLASH_WRITE_OK
-} status;
+//enum Status {
+//	FLASH_EMPTY,
+//	ID_WRONG,
+//	ID_CORRECT,
+//	FW_WRONG,
+//	FW_CORRECT,
+//	RT_NOT_FOUND,
+//	RT_FOUND,
+//	SETTINGS_SIZE_CORRECT,
+//	SETTINGS_SIZE_WRONG,
+//	SETTINGS_OK,
+//	SETTINGS_OUT_OF_RANGE,
+//	FLASH_WRITE_FAIL,
+//	FLASH_WRITE_OK
+//} status;
 
-extern RTC_HandleTypeDef hrtc;
-
-RTC_TimeTypeDef 	time;
-RTC_DateTypeDef 	date;
 
 uint32_t settings_size;
 uint32_t device_id;
+uint32_t current_tick_counter; // milliseconds
+uint32_t previous_running_time; // seconds
+uint32_t current_running_time; // seconds
 uint8_t settings_save;
 
 
@@ -95,7 +99,7 @@ static int flash_write(volatile uint32_t dest, volatile int* src, uint32_t size)
 	int status = 0;
 
 	/* Erase and programm single word */
-#if (ID1 == 1) // For Scope type devices
+#ifdef STM32L031xx // For Scope type devices // todo: id1 change to ifdef STM32L031xx
 	status = HAL_FLASHEx_DATAEEPROM_Unlock();
 	if (status != HAL_OK) return status;
 
@@ -251,7 +255,9 @@ static uint8_t settings_check_is_valid(Setting_TypeDef *s_ptr) {
 		}
 	}
 
-	return non_valid_values;
+	if(non_valid_values > 0) return 0;
+
+	return 1;
 }
 
 void settings_read(Setting_TypeDef *s_ptr) {
@@ -264,7 +270,7 @@ void settings_read(Setting_TypeDef *s_ptr) {
 
 	/* Transfer them to the structures */
 	for (Settings_IDs id = 0; id < NUM_OF_SETTINGS; ++id)
-		s_ptr[NUM_OF_SETTINGS].val = temp_buffer[id];
+		s_ptr[id].val = temp_buffer[id];
 }
 
 int settings_write(Setting_TypeDef *s_ptr) {
@@ -308,7 +314,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	assert_param(s_ptr == NULL);
 
 	volatile uint8_t restore_defaults_flag = 0;
-	volatile uint8_t is_rtc_matched = 0;
+	volatile uint8_t is_have_old_rtc_data = 0;
 	volatile uint8_t status = 0;
 
 	/*
@@ -345,8 +351,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			 */
 			volatile uint8_t is_valid = settings_check_is_valid(s_ptr);
 			if (!is_valid) {
-				settings_value_reset_all(s_ptr);
-				return settings_write(s_ptr);
+				restore_defaults_flag = 1;
 			}
 		} else {
 			restore_defaults_flag = 1;
@@ -357,7 +362,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			 * in case FW tells us that it's previous version of firmware
 			 */
 			if (fw < DEVICE_FW_MIN) {
-				is_rtc_matched = device_running_time_check_old();
+				is_have_old_rtc_data = device_running_time_check_old();
 			}
 #endif
 		}
@@ -375,25 +380,9 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	}
 
 	/*
-	 * RTC init with either old or new values
+	 * Read saved running time in seconds
 	 */
-#ifdef RESET_RTC_VALUES
-	rtc_values_reset();
-	return 0;
-#else
-	if (!is_rtc_matched) device_running_time_read(&date, &time);
-
-	/*
-	 * Set time and date if data in FLASH is correct
-	 */
-	volatile rtc_values_correct = rtc_check_is_valid();
-
-	if (rtc_values_correct) {
-		status += HAL_RTC_SetDate(&hrtc, &date, RTC_FORMAT_BIN);
-		status += HAL_RTC_SetTime(&hrtc, &time, RTC_FORMAT_BIN);
-	} else {
-		status += rtc_values_reset();
-	}
+	if (!is_have_old_rtc_data) previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
 
 	return status;
 };
@@ -512,46 +501,31 @@ void settings_value_reset_all(Setting_TypeDef *s_ptr) {
 
 
 
-/**
- * @brief  Read device running time counter from the FLASH
- * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
- */
-void device_running_time_read(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
-	int temp_buffer[6] = {0};
+///**
+// * @brief  Read device running time counter from the FLASH
+// * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
+// */
+//void device_running_time_read(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
+//	int temp_buffer[6] = {0};
+//
+//
+//
+////    /* Set correct values */
+////    date->Date 		= temp_buffer[0];
+////    date->Month 	= temp_buffer[1];
+////    date->Year 		= temp_buffer[2];
+////    time->Hours 	= temp_buffer[3];
+////    time->Minutes 	= temp_buffer[4];
+////    time->Seconds 	= temp_buffer[5];
+//}
 
-	/*
-	 * Copy all settings (N x uint32_t)
-	 * from FLASH to the buffer
-	 */
-//	memcpy(temp_buffer, (const int*)ADDR_DEVICE_RT, 6*sizeof(int));
-	flash_read(temp_buffer, ADDR_DEVICE_RT, 6);
-
-    /* Set correct values */
-    date->Date 		= temp_buffer[0];
-    date->Month 	= temp_buffer[1];
-    date->Year 		= temp_buffer[2];
-    time->Hours 	= temp_buffer[3];
-    time->Minutes 	= temp_buffer[4];
-    time->Seconds 	= temp_buffer[5];
-}
-
-/**
- * @brief  Read device running time counter from the FLASH
- * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
- */
-int device_running_time_write(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
-	int temp_buffer[6] = {0};
-
-    /* Copy to temp buf */
-    temp_buffer[0]	= date->Date;
-    temp_buffer[1]	= date->Month;
-    temp_buffer[2]	= date->Year;
-    temp_buffer[3]	= time->Hours;
-    temp_buffer[4] 	= time->Minutes;
-    temp_buffer[5] 	= time->Seconds;
-
-    return flash_write(ADDR_DEVICE_RT, temp_buffer, 6);
-}
+///**
+// * @brief  Read device running time counter from the FLASH
+// * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
+// */
+//int device_running_time_write(uint32_t *rt) {
+//    return
+//}
 
 /**
  * @brief  Read device running time counter from the FLASH
@@ -588,12 +562,12 @@ int device_running_time_check_old(void) {
 
 	/* Set values if there is a match */
 	if (match > 0) {
-		date.Date 		= temp_buffer[0];
-		date.Month 	= temp_buffer[1];
-		date.Year 		= temp_buffer[2];
-		time.Hours 	= temp_buffer[3];
-		time.Minutes 	= temp_buffer[4];
-		time.Seconds 	= temp_buffer[5];
+		previous_running_time = \
+								temp_buffer[1]*30*24*60*60 	+ \
+								temp_buffer[2]*24*60*60 	+ \
+								temp_buffer[3]*60*60 		+ \
+								temp_buffer[4]*60 			+
+								temp_buffer[5];
 	}
 
 	// Note: check for correctness is performed separately in rtc_init() function
@@ -601,58 +575,27 @@ int device_running_time_check_old(void) {
 	return match;
 }
 
-int rtc_values_reset(void) {
-	date.Date		= 0;
-	date.Month		= 0;
-	date.Year		= 0;
-	time.Hours 		= 0;
-	time.Minutes	= 0;
-	time.Seconds	= 0;
 
-	return device_running_time_write(&date, &time);
-}
+void rt_update(void) {
+	static uint16_t save_counter = 0;
 
-int rtc_check_is_valid(void) {
-	int status = 0;
-
-	if(	date.Year 		< 99 &&
-		date.Date 		< 31 &&
-		date.Month 		< 12 &&
-		time.Hours		< 31 &&
-		time.Minutes 	< 59 &&
-		time.Seconds 	< 59) {
-		status = 1;
-	}
-
-	return status;
-}
-
-int rtc_init(void) {
-
-
-#endif /* RESET_RTC_VALUES */
-
-	return status;
-}
-
-void rtc_update(void) {
-	static uint16_t rtc_save_counter = 0;
-
+	current_tick_counter = HAL_GetTick();
+	current_running_time = current_tick_counter/1000;
 	/*
 	 * Add 1 second to counter and check for counting 10 minutes
 	 * (1x60x10 = 600, with rtc_save_counter updates every second)
 	 */
-	if((++rtc_save_counter) == 600) {
-		rtc_time_save();
-		rtc_save_counter = 0;
+	if((++save_counter) == 600) {
+		rt_time_save();
+		save_counter = 0;
 	}
 }
 
-void rtc_time_save(void) {
-	HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
-	HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
-
-	device_running_time_write(&date, &time);
+void rt_time_save(void) {
+	current_tick_counter = HAL_GetTick();
+	current_running_time = current_tick_counter/1000;
+	previous_running_time += current_running_time;
+	flash_write(ADDR_DEVICE_RT, &previous_running_time, 1);
 }
 
 void HAL_PWR_PVDCallback(void) {

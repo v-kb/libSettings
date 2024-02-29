@@ -40,6 +40,10 @@ typedef struct setting {
 } Setting_TypeDef;
 
 extern uint8_t settings_save;
+extern uint32_t current_tick_counter; // milliseconds
+extern uint32_t current_running_time; 	// seconds
+extern uint32_t previous_running_time;
+
 
 uint8_t settings_init(Setting_TypeDef *s_ptr);
 
@@ -54,15 +58,9 @@ int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
 int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
 void settings_value_reset_all	(Setting_TypeDef *s_ptr);
 
-void device_running_time_read		(RTC_DateTypeDef *date, RTC_TimeTypeDef *time);
-int device_running_time_write		(RTC_DateTypeDef *date, RTC_TimeTypeDef *time);
 int device_running_time_check_old	(void);
-
-int rtc_init			(void);
-int rtc_values_reset	(void);
-int rtc_check_is_valid	(void);
-void rtc_update			(void);
-void rtc_time_save		(void);
+void rt_update			(void);
+void rt_time_save		(void);
 
 
 #endif /* INC_SETTINGS_H_ */
