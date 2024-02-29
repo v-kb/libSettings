@@ -441,6 +441,24 @@ int settings_value_dec(Setting_TypeDef *s_ptr, Settings_IDs id) {
 	return 0;
 }
 
+/**
+ * @brief  Decrease the value of a setting in cycle.
+ * @param  id: ID of the setting to increase.
+ * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
+ */
+int settings_value_dec_cyclic(Setting_TypeDef *s_ptr, Settings_IDs id) {
+	assert_param(s_ptr == NULL);
+
+    if (id != s_ptr[id].id) return 1;
+
+	int new_val = s_ptr[id].val - s_ptr[id].del;
+
+	if (new_val < s_ptr[id].min) new_val = s_ptr[id].max;
+
+	s_ptr[id].val = new_val;
+	return 0;
+}
+
 
 /**
  * @brief  Toggle between min and max values of a setting.

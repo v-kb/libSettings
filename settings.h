@@ -53,6 +53,7 @@ int settings_write(Setting_TypeDef *s_ptr);
 int settings_value_inc			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_inc_cyclic	(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_dec			(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_dec_cyclic	(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_tgl			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
 int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
