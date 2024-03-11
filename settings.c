@@ -382,7 +382,8 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	/*
 	 * Read saved running time in seconds
 	 */
-	if (!is_have_old_rtc_data) previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
+	if (!is_have_old_rtc_data) previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT ); // Restore previous value to variable
+	else rt_time_save();																		// Save to the new location old RT value
 
 	return status;
 };
@@ -612,8 +613,9 @@ void rt_update(void) {
 void rt_time_save(void) {
 	current_tick_counter = HAL_GetTick();
 	current_running_time = current_tick_counter/1000;
-	previous_running_time += current_running_time;
-	flash_write(ADDR_DEVICE_RT, &previous_running_time, 1);
+//	previous_running_time += current_running_time;
+	uint32_t running_time = previous_running_time + current_running_time;
+	flash_write(ADDR_DEVICE_RT, &running_time, 1);
 }
 
 void HAL_PWR_PVDCallback(void) {
