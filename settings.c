@@ -342,9 +342,11 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			volatile uint8_t is_valid = settings_check_is_valid(s_ptr);
 			if (!is_valid) {
 				restore_defaults_flag = 1;
+				settings_status |= SETTINGS_OUT_OF_RANGE;
 			}
 		} else {
 			restore_defaults_flag = 1;
+			settings_status |= (ID_WRONG | SETTINGS_SIZE_WRONG);
 
 #if (ID1 == 1 || ID1 == 2) // Only for Scopes and Clip-ons
 			/*
@@ -353,6 +355,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			 */
 			if (fw < DEVICE_FW_MIN) {
 				is_have_old_rtc_data = device_running_time_check_old();
+				settings_status |= FW_WRONG;
 			}
 #endif
 		}

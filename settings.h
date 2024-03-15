@@ -5,6 +5,7 @@
 #include "property.h"
 #include "version.h"
 
+// todo: drop some of this values as they are not needed
 typedef enum Status {
 	FLASH_EMPTY				= 0b0000000000000001,
 	ID_WRONG				= 0b0000000000000010,
