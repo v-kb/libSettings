@@ -5,6 +5,21 @@
 #include "property.h"
 #include "version.h"
 
+typedef enum Status {
+	FLASH_EMPTY				= 0b0000000000000001,
+	ID_WRONG				= 0b0000000000000010,
+	ID_CORRECT				= 0b0000000000000100,
+	FW_WRONG				= 0b0000000000001000,
+	FW_CORRECT				= 0b0000000000010000,
+	RT_NOT_FOUND			= 0b0000000000100000,
+	RT_FOUND				= 0b0000000001000000,
+	SETTINGS_SIZE_CORRECT	= 0b0000000010000000,
+	SETTINGS_SIZE_WRONG		= 0b0000000100000000,
+	SETTINGS_OK				= 0b0000001000000000,
+	SETTINGS_OUT_OF_RANGE	= 0b0000010000000000,
+	FLASH_WRITE_FAIL		= 0b0000100000000000,
+	FLASH_WRITE_OK			= 0b0001000000000000
+} Settings_Status;
 
 typedef enum Settings {
 #if (ID1 == 1) // For Scope type devices
@@ -22,6 +37,7 @@ typedef enum Settings {
 	EYE_SENSOR_VALUE,
 	BRIGHTNESS_OLED,
 	BRIGHTNESS_MENU,
+	MARK_COLOR,
 #else
 	IDE,
 	QUICK_SIGHTING,
@@ -45,6 +61,7 @@ extern uint8_t settings_save;
 extern uint32_t current_tick_counter; // milliseconds
 extern uint32_t current_running_time; 	// seconds
 extern uint32_t previous_running_time;
+extern Settings_Status settings_status;
 
 
 uint8_t settings_init(Setting_TypeDef *s_ptr);

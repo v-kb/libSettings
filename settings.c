@@ -60,21 +60,7 @@
 
 
 
-//enum Status {
-//	FLASH_EMPTY,
-//	ID_WRONG,
-//	ID_CORRECT,
-//	FW_WRONG,
-//	FW_CORRECT,
-//	RT_NOT_FOUND,
-//	RT_FOUND,
-//	SETTINGS_SIZE_CORRECT,
-//	SETTINGS_SIZE_WRONG,
-//	SETTINGS_OK,
-//	SETTINGS_OUT_OF_RANGE,
-//	FLASH_WRITE_FAIL,
-//	FLASH_WRITE_OK
-//} status;
+
 
 
 uint32_t settings_size;
@@ -83,6 +69,8 @@ uint32_t current_tick_counter; // milliseconds
 uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
 uint8_t settings_save;
+// todo: add statuses in all functions
+Settings_Status settings_status; // Various combinations of statuses displayed to have a flexible error correction and situation handling
 
 
 /**
@@ -316,6 +304,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	volatile uint8_t restore_defaults_flag = 0;
 	volatile uint8_t is_have_old_rtc_data = 0;
 	volatile uint8_t status = 0;
+	settings_status = 0;
 
 	/*
 	 * Check if all user-defined IDs correspond to predefined enums
@@ -330,6 +319,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	volatile uint8_t is_empty = flash_check_is_empty();
 	if (is_empty) {
 		restore_defaults_flag = 1;
+		settings_status |= FLASH_EMPTY;
 	} else {
 		/*
 		 * Check FW, ID and settings size
