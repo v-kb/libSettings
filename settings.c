@@ -487,7 +487,7 @@ int settings_value_set(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val) {
 }
 
 /**
- * @brief  Resets the value of the specified setting.
+ * @brief  Resets the value of the specified setting to the default value.
  * @param  id: ID of the setting to reset.
  * @retval returns 2 if ID is not found; 1 if s_ptr is NULL; 0 if OK.
  */
@@ -498,6 +498,17 @@ int settings_value_reset(Setting_TypeDef *s_ptr, Settings_IDs id) {
 
 	s_ptr[id].val = s_ptr[id].def;
 	return 0;
+}
+
+/**
+ * @brief  Sets values in all settings to zero (reset flash).
+ * @param  id: ID of the setting to decrease.
+ * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
+ */
+void settings_value_drop_all(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
+		s_ptr[i].val = -1;
 }
 
 /**

@@ -78,6 +78,7 @@ int settings_value_tgl			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
 int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
 void settings_value_reset_all	(Setting_TypeDef *s_ptr);
+void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 
 int device_running_time_check_old	(void);
 void rt_update			(void);
