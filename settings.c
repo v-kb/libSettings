@@ -70,7 +70,6 @@ uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
 uint8_t settings_save;
 // todo: add statuses in all functions
-Settings_Status settings_status; // Various combinations of statuses displayed to have a flexible error correction and situation handling
 
 
 /**
@@ -82,7 +81,7 @@ Settings_Status settings_status; // Various combinations of statuses displayed t
   * @note   This function is for various uCs.
   * @retval status returns number of errors occured in the process
   */
-static int flash_write(volatile uint32_t dest, volatile int* src, uint32_t size) {
+static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	//todo: add various uCs defined by device_id
 	int status = 0;
 
@@ -298,19 +297,18 @@ int settings_write(Setting_TypeDef *s_ptr) {
  * @brief  Restore settings from FLASH or set the defaults.
  * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
  */
-uint8_t settings_init(Setting_TypeDef *s_ptr) {
+Settings_Status settings_init(Setting_TypeDef *s_ptr) {
 	assert_param(s_ptr == NULL);
 
-	volatile uint8_t restore_defaults_flag = 0;
-	volatile uint8_t is_have_old_rtc_data = 0;
-	volatile uint8_t status = 0;
-	settings_status = 0;
+	Settings_Status status 					= 0;
+	uint8_t 		restore_defaults_flag 	= 0;
+	uint8_t 		is_have_old_rtc_data 	= 0;
 
 	/*
 	 * Check if all user-defined IDs correspond to predefined enums
 	 */
 	for (Settings_IDs id = 0; id < NUM_OF_SETTINGS; ++id) {
-		if (id != s_ptr[id].id) return 1;
+		if (id != s_ptr[id].id) return SETTINGS_FAIL;
 	}
 
 	/*
@@ -319,7 +317,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	volatile uint8_t is_empty = flash_check_is_empty();
 	if (is_empty) {
 		restore_defaults_flag = 1;
-		settings_status |= FLASH_EMPTY;
+		status |= FLASH_EMPTY;
 	} else {
 		/*
 		 * Check FW, ID and settings size
@@ -342,11 +340,11 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			volatile uint8_t is_valid = settings_check_is_valid(s_ptr);
 			if (!is_valid) {
 				restore_defaults_flag = 1;
-				settings_status |= SETTINGS_OUT_OF_RANGE;
+				status |= OUT_OF_RANGE;
 			}
 		} else {
 			restore_defaults_flag = 1;
-			settings_status |= (ID_WRONG | SETTINGS_SIZE_WRONG);
+			status |= (ID_WRONG | SIZE_WRONG);
 
 #if (ID1 == 1 || ID1 == 2) // Only for Scopes and Clip-ons
 			/*
@@ -355,7 +353,7 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 			 */
 			if (fw < DEVICE_FW_MIN) {
 				is_have_old_rtc_data = device_running_time_check_old();
-				settings_status |= FW_WRONG;
+				status |= FW_WRONG;
 			}
 #endif
 		}
@@ -367,16 +365,23 @@ uint8_t settings_init(Setting_TypeDef *s_ptr) {
 	if (restore_defaults_flag) {
 		settings_value_reset_all(s_ptr);
 
-		status += device_id_fw_write	();
-		status += settings_size_write	(NUM_OF_SETTINGS); // What if size will overlay RTC values?
-		status += settings_write		(s_ptr);
+		int res = 0;
+		res += device_id_fw_write	();
+		res += settings_size_write	(NUM_OF_SETTINGS); // What if size will overlay RTC values?
+		res += settings_write		(s_ptr);
+		if (res > 0) status |= WRITE_FAIL;
 	}
 
 	/*
 	 * Read saved running time in seconds
 	 */
-	if (!is_have_old_rtc_data) previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT ); // Restore previous value to variable
-	else rt_time_save();																		// Save to the new location old RT value
+	if (!is_have_old_rtc_data) {		// Restore previous value to variable
+		previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
+//		status |= RT_NOT_FOUND;
+	} else {							// Save to the new location old RT value
+		rt_time_save();
+	}
+
 
 	return status;
 };
