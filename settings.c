@@ -1,6 +1,5 @@
 #include <string.h>
 #include "settings.h"
-#include "version.h"
 
 #ifdef STM32L031xx
 	#define USER_DATA_BASEADDR		0x08080000
@@ -224,6 +223,12 @@ static int device_id_fw_write(void) {
 	int data[2] = {((ID1 << 16) | ID2), ((FW1 << 24) | (FW2 << 16) | FW3)};
     return flash_write(ADDR_DEVICE_ID, data, 2);
 }
+
+// todo: add check as fn
+//static uint8_t check_param(void) {
+//	assert_param(s_ptr == NULL);
+//    if(id != s_ptr[id].id) return 0;
+//}
 
 
 /**
@@ -478,7 +483,7 @@ int settings_value_tgl(Setting_TypeDef *s_ptr, Settings_IDs id) {
  * @brief  Set the value of a setting to the specified value.
  * @param  id: ID of the setting to decrease.
  * @param  new_val: New value to be set
- * @retval returns -1 if ID is not found or s_ptr is NULL; -2 new value is out of range, and 0 if OK.
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 2 new value is out of range, and 0 if OK.
  */
 int settings_value_set(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val) {
 	assert_param(s_ptr == NULL);
@@ -492,11 +497,35 @@ int settings_value_set(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val) {
 }
 
 /**
+ * @brief  Set settings to it's minimum value.
+ * @param  id: ID of the setting to decrease.
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
+ */
+int settings_value_set_min(Setting_TypeDef *s_ptr, Settings_IDs id) {
+	assert_param(s_ptr == NULL);
+    if (id != s_ptr[id].id) return 1;
+	s_ptr[id].val = s_ptr[id].min;
+	return 0;
+}
+
+/**
+ * @brief  Set settings to it's maximum value.
+ * @param  id: ID of the setting to decrease.
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
+ */
+int settings_value_set_max(Setting_TypeDef *s_ptr, Settings_IDs id) {
+	assert_param(s_ptr == NULL);
+    if (id != s_ptr[id].id) return 1;
+	s_ptr[id].val = s_ptr[id].max;
+	return 0;
+}
+
+/**
  * @brief  Resets the value of the specified setting to the default value.
  * @param  id: ID of the setting to reset.
- * @retval returns 2 if ID is not found; 1 if s_ptr is NULL; 0 if OK.
+ * @retval returns 1 if ID is not found; 0 if OK.
  */
-int settings_value_reset(Setting_TypeDef *s_ptr, Settings_IDs id) {
+int settings_value_set_def(Setting_TypeDef *s_ptr, Settings_IDs id) {
 	assert_param(s_ptr == NULL);
 
     if (id != s_ptr[id].id) return 1;

@@ -1,6 +1,8 @@
 #ifndef INC_SETTINGS_H_
 #define INC_SETTINGS_H_
 
+#include "version.h"
+
 #ifdef STM32L031xx
 #include "stm32l0xx_hal.h"
 #elif defined(STM32L071xx)
@@ -62,10 +64,9 @@ typedef struct setting {
 } Setting_TypeDef;
 
 extern uint8_t settings_save;
-extern uint32_t current_tick_counter; // milliseconds
+extern uint32_t current_tick_counter; 	// milliseconds
 extern uint32_t current_running_time; 	// seconds
-extern uint32_t previous_running_time;
-//extern Settings_Status settings_status;
+extern uint32_t previous_running_time;	// seconds
 
 
 Settings_Status settings_init(Setting_TypeDef *s_ptr);
@@ -79,7 +80,9 @@ int settings_value_dec			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_dec_cyclic	(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_tgl			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
-int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_set_min		(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_set_max		(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_set_def		(Setting_TypeDef *s_ptr, Settings_IDs id);
 void settings_value_reset_all	(Setting_TypeDef *s_ptr);
 void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 
