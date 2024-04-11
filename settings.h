@@ -82,7 +82,7 @@ int settings_value_tgl			(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
 int settings_value_set_min		(Setting_TypeDef *s_ptr, Settings_IDs id);
 int settings_value_set_max		(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_set_def		(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
 void settings_value_reset_all	(Setting_TypeDef *s_ptr);
 void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 

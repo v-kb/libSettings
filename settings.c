@@ -525,7 +525,7 @@ int settings_value_set_max(Setting_TypeDef *s_ptr, Settings_IDs id) {
  * @param  id: ID of the setting to reset.
  * @retval returns 1 if ID is not found; 0 if OK.
  */
-int settings_value_set_def(Setting_TypeDef *s_ptr, Settings_IDs id) {
+int settings_value_reset(Setting_TypeDef *s_ptr, Settings_IDs id) {
 	assert_param(s_ptr == NULL);
 
     if (id != s_ptr[id].id) return 1;
