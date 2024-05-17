@@ -4,8 +4,12 @@
 #ifdef STM32L031xx
 	#define USER_DATA_BASEADDR		0x08080000
 	#define EEPROM_SIZE				1024		// bytes
-#elif defined(STM32L071xx)
-	#define USER_DATA_BASEADDR		0x08080000	// For STM32L071
+#elif defined(STM32G0B1xx)
+	#define SETTINGS_BASE_ADDR		0x0807F800					// - 0x0807 FFFF, 2KB, Page 383, Bank 2
+	#define SETTINGS_PAGE			383							// Last page
+	#define RTC_BASE_ADDR			(SETTINGS_BASE_ADDR - 2048)	// - 0x0807 F7FF, 2KB, Page 382, Bank 2
+	#define RTC_PAGE				(SETTINGS_PAGE - 1)			// Last page
+	#define BUFFER_MIN_SIZE			200
 #else
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
@@ -84,8 +88,8 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	//todo: add various uCs defined by device_id
 	int status = 0;
 
-	/* Erase and programm single word */
 #ifdef STM32L031xx // For Scope type devices // todo: id1 change to ifdef STM32L031xx
+	/* Erase and programm single word */
 	status = HAL_FLASHEx_DATAEEPROM_Unlock();
 	if (status != HAL_OK) return status;
 
@@ -125,6 +129,34 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 
 	/* Lock the Flash */
 	HAL_FLASH_Lock();
+#elif defined(STM32G0B1xx)
+	/* Erase and programm the entire page */
+	FLASH_EraseInitTypeDef 	EraseInitStruct;
+	uint32_t 				error;
+
+	/* Unlock the Flash to enable the flash control register access */
+	status = HAL_FLASH_Unlock();
+
+	/* Fill EraseInit structure*/
+	EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
+	EraseInitStruct.Banks		= FLASH_BANK_2;
+	EraseInitStruct.Page		= SETTINGS_PAGE;
+	EraseInitStruct.NbPages     = 1;
+
+	/* Erase the user Flash area*/
+	if (HAL_FLASHEx_Erase(&EraseInitStruct, &error) != HAL_OK) {
+		/*Error occurred while page erase.*/
+		return HAL_FLASH_GetError ();
+	}
+
+	/* Program the user Flash area */
+	status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, addr, ((uint64_t)(uintptr_t)data));
+	if (status != HAL_OK) {
+		return HAL_FLASH_GetError ();
+	}
+
+	/* Lock the Flash */
+	status = HAL_FLASH_Lock();
 #else
 //	FLASH_EraseInitTypeDef 	EraseInitStruct;
 //	uint32_t 				error;
@@ -196,7 +228,13 @@ static uint32_t settings_size_read(void) {
   * @retval returns 1 if size is not correct and 0 if OK
   */
 static inline int settings_size_write(int size) {
+#ifdef STM32L031xx
 	return flash_write(ADDR_SETTINGS_SIZE, &size, 1);
+#elif defined(STM32G0B1xx)
+	// As we can not program word by word and only can program empty flash it needs to be checked first.
+#else
+	// Some other code
+#endif
 }
 
 /**
@@ -510,6 +548,7 @@ int settings_value_set_min(Setting_TypeDef *s_ptr, Settings_IDs id) {
 
 /**
  * @brief  Set settings to it's maximum value.
+ * @param  *s_ptr:
  * @param  id: ID of the setting to decrease.
  * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
  */
@@ -522,6 +561,7 @@ int settings_value_set_max(Setting_TypeDef *s_ptr, Settings_IDs id) {
 
 /**
  * @brief  Resets the value of the specified setting to the default value.
+ * @param  *s_ptr:
  * @param  id: ID of the setting to reset.
  * @retval returns 1 if ID is not found; 0 if OK.
  */
@@ -536,7 +576,7 @@ int settings_value_reset(Setting_TypeDef *s_ptr, Settings_IDs id) {
 
 /**
  * @brief  Sets values in all settings to zero (reset flash).
- * @param  id: ID of the setting to decrease.
+ * @param  *s_ptr:
  * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
  */
 void settings_value_drop_all(Setting_TypeDef *s_ptr) {
@@ -547,7 +587,7 @@ void settings_value_drop_all(Setting_TypeDef *s_ptr) {
 
 /**
  * @brief  Resets values in all settings.
- * @param  id: ID of the setting to decrease.
+ * @param  *s_ptr:
  * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
  */
 void settings_value_reset_all(Setting_TypeDef *s_ptr) {
