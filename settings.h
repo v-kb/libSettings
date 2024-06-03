@@ -7,6 +7,8 @@
 #include "stm32l0xx_hal.h"
 #elif defined(STM32L071xx)
 // For STM32L071
+#elif defined(STM32G0B1xx)
+#include "stm32g0xx_hal.h"
 #else
 // For STM32L031
 #endif
@@ -42,10 +44,47 @@ typedef enum Settings {
 	BRIGHTNESS_OLED,
 	BRIGHTNESS_MENU,
 	MARK_COLOR,
-#if (ID2 == 4) || (ID2 == 5)
+#elif (ID1 == 10)
 	CONTRAST,
 	BRIGHTNESS,
-#endif
+	MARK_COLOR,
+	MARK_BRIGHTNESS,
+	PROFILE,
+	MARK_OFFSET_X,
+	MARK_OFFSET_Y,
+	RF_OFFSET_X,
+	RF_OFFSET_Y,
+	RF_FREQUENCY_HZ,
+	BINNING,
+	LEAD_VISIBILITY,
+	AGC_VISIBILITY,
+	AGC_OFFSET_X,
+	AGC_OFFSET_Y,
+	AGC_WIDTH,
+	AGC_HEIGHT,
+	MODULE_CONTRAST,
+	MODULE_BRIGHTNESS,
+	GAMMA_CORRECTION,
+	BC_MODE,
+	CONTRAST_BIAS,
+	MAX_CONTRAST,
+	ORIENTATION,
+	ALC_OFF,
+	SLOW_FPS,
+	SHUTTER_SPEED,
+	EXPOSURE_TIME_NORMAL,
+	EXPOSURE_TIME_SLOW_FPS,
+	MANUAL_GAIN,
+	DISPLAY_BRIGHTNESS,
+	DISPLAY_CONTRAST,
+	DISPLAY_VCOM,
+	DISPLAY_TEMP_COMP,
+	DISPLAY_GAMMA_ON,
+	DISPLAY_GAMMA_VALUE,
+	DISPLAY_TEST_PATTERN,
+#elif (ID2 == 4) || (ID2 == 5)
+	CONTRAST,
+	BRIGHTNESS,
 #else
 	IDE,
 	QUICK_SIGHTING,
@@ -67,6 +106,7 @@ typedef struct setting {
 	int				max;			///< Maximum value for this setting
 } Setting_TypeDef;
 
+extern Setting_TypeDef s_ptr[NUM_OF_SETTINGS];
 extern uint8_t settings_save;
 extern uint32_t current_tick_counter; 	// milliseconds
 extern uint32_t current_running_time; 	// seconds

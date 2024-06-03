@@ -330,7 +330,7 @@ int settings_write(Setting_TypeDef *s_ptr) {
 		if (temp_buffer[i] != s_ptr[i].val) ++status;
 	}
 
-	/* If data is equal then status == 0, everything is ok, return 0 */
+	/* If both data match, then status == 0 (everything is ok, return 0) */
 	return status;
 }
 
