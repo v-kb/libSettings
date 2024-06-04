@@ -7,13 +7,14 @@
 #elif defined(STM32G0B1xx)
 	#define SETTINGS_BASE_ADDR		0x0807F800					// - 0x0807 FFFF, 2KB, Page 383, Bank 2
 	#define SETTINGS_PAGE			383							// Last page
-	#define RTC_BASE_ADDR			(SETTINGS_BASE_ADDR - 2048)	// - 0x0807 F7FF, 2KB, Page 382, Bank 2
-	#define RTC_PAGE				(SETTINGS_PAGE - 1)			// Last page
+	#define SERVICE_BASE_ADDR		(SETTINGS_BASE_ADDR - 2048)	// - 0x0807 F7FF, 2KB, Page 382, Bank 2
+	#define SERVICE_PAGE			(SETTINGS_PAGE - 1)			// Last page
 	#define BUFFER_MIN_SIZE			200
 #else
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
 
+#if (ID1 == 1) || (ID2 == 2)
 #define ADDR_DEVICE_ID			USER_DATA_BASEADDR
 #define ADDR_DEVICE_FW			(USER_DATA_BASEADDR + 4)
 #define ADDR_DEVICE_RT			(USER_DATA_BASEADDR + 8)
@@ -22,6 +23,15 @@
 
 #define ADDR_DEVICE_RT_OLD_1	(USER_DATA_BASEADDR + 16)
 #define ADDR_DEVICE_RT_OLD_2	(USER_DATA_BASEADDR + 64)
+#elif (ID1 == 10)
+#define ADDR_DEVICE_ID			SERVICE_BASE_ADDR
+#define ADDR_DEVICE_FW			(SERVICE_BASE_ADDR + 4)
+#define ADDR_DEVICE_RT			(SERVICE_BASE_ADDR + 8)
+#define ADDR_SETTINGS_SIZE		SETTINGS_BASE_ADDR
+#define ADDR_SETTINGS			(SETTINGS_BASE_ADDR + 8) // Size is written as doubleword, hence +8
+#else
+#endif
+
 
 #define DEVICE_ID 				((ID1 << 16) | ID2)
 #define DEVICE_FW 				((FW1 << 24) | (FW2 << 16) | FW3)
@@ -88,7 +98,7 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	//todo: add various uCs defined by device_id
 	int status = 0;
 
-#ifdef STM32L031xx // For Scope type devices // todo: id1 change to ifdef STM32L031xx
+#ifdef STM32L031xx // For Scope type devices
 	/* Erase and programm single word */
 	status = HAL_FLASHEx_DATAEEPROM_Unlock();
 	if (status != HAL_OK) return status;
@@ -140,17 +150,33 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	/* Fill EraseInit structure*/
 	EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
 	EraseInitStruct.Banks		= FLASH_BANK_2;
-	EraseInitStruct.Page		= SETTINGS_PAGE;
+	EraseInitStruct.Page		= dest >= ADDR_SETTINGS_SIZE ? SETTINGS_PAGE : SERVICE_PAGE;
 	EraseInitStruct.NbPages     = 1;
 
-	/* Erase the user Flash area*/
+	/* Erase the user Flash area */
 	if (HAL_FLASHEx_Erase(&EraseInitStruct, &error) != HAL_OK) {
 		/*Error occurred while page erase.*/
 		return HAL_FLASH_GetError ();
 	}
 
-	/* Program the user Flash area */
-	status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, addr, ((uint64_t)(uintptr_t)data));
+	// Write ID, FW and Settings Size first if we writing Settings
+	if (EraseInitStruct.Page == SERVICE_PAGE) {
+		uint64_t data = (DEVICE_FW << 32) | DEVICE_ID;
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_DEVICE_ID, ((uint64_t)(uintptr_t)&data));
+		if (status != HAL_OK) {
+			return HAL_FLASH_GetError ();
+		}
+	} else {
+		uint32_t size = NUM_OF_SETTINGS;
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_SETTINGS_SIZE, ((uint64_t)(uintptr_t)&size));
+		if (status != HAL_OK) {
+			return HAL_FLASH_GetError ();
+		}
+	}
+
+	/* Program the user Flash area (32 row double words todo: check size of settings first) */
+//	int i = NUM_OF_SETTINGS/64
+	status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, dest, ((uint64_t)(uintptr_t)src));
 	if (status != HAL_OK) {
 		return HAL_FLASH_GetError ();
 	}
@@ -205,12 +231,21 @@ static void flash_read(int* dest, uint32_t src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static int flash_check_is_empty(void) {
+#if (ID1 == 1) || (ID1 == 2)
 	int temp_buf[EEPROM_SIZE/4] = {0};
 
 	flash_read(temp_buf, USER_DATA_BASEADDR, EEPROM_SIZE/4);
 
 	for (int i = 0; i < EEPROM_SIZE/4; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
+#elif (ID1 == 10)
+	int temp_buf[2048] = {0};
+	flash_read(temp_buf, ADDR_SETTINGS, 2048);
+	for (int i = 0; i < 2048; ++i)
+		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
+#else
+#endif
+
 
 	return 1;
 }
@@ -232,6 +267,7 @@ static inline int settings_size_write(int size) {
 	return flash_write(ADDR_SETTINGS_SIZE, &size, 1);
 #elif defined(STM32G0B1xx)
 	// As we can not program word by word and only can program empty flash it needs to be checked first.
+	return 0;
 #else
 	// Some other code
 #endif
@@ -258,8 +294,14 @@ static uint32_t device_fw_read(void) {
  * @retval returns write results.
  */
 static int device_id_fw_write(void) {
+#ifdef STM32L031xx
 	int data[2] = {((ID1 << 16) | ID2), ((FW1 << 24) | (FW2 << 16) | FW3)};
     return flash_write(ADDR_DEVICE_ID, data, 2);
+#elif defined(STM32G0B1xx)
+    return 0;
+#else
+	// Some other code
+#endif
 }
 
 // todo: add check as fn
@@ -624,6 +666,7 @@ void settings_value_reset_all(Setting_TypeDef *s_ptr) {
 //    return
 //}
 
+#if (ID1 == 1) || (ID1 == 2)
 /**
  * @brief  Read device running time counter from the FLASH
  * @retval match returns 1 if time records found @ first addr; 2 if @ second; 0 if nothing found.
@@ -671,6 +714,7 @@ int device_running_time_check_old(void) {
 
 	return match;
 }
+#endif
 
 
 void rt_update(void) {
