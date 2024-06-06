@@ -24,11 +24,11 @@
 #define ADDR_DEVICE_RT_OLD_1	(USER_DATA_BASEADDR + 16)
 #define ADDR_DEVICE_RT_OLD_2	(USER_DATA_BASEADDR + 64)
 #elif (ID1 == 10)
-#define ADDR_DEVICE_ID			SERVICE_BASE_ADDR
-#define ADDR_DEVICE_FW			(SERVICE_BASE_ADDR + 4)
-#define ADDR_DEVICE_RT			(SERVICE_BASE_ADDR + 8)
+#define ADDR_DEVICE_ID			SERVICE_BASE_ADDR // Everything is written as doublewords (64 bit), meaning +8 (two ints)
+#define ADDR_DEVICE_FW			(SERVICE_BASE_ADDR + 8)
+#define ADDR_DEVICE_RT			(SERVICE_BASE_ADDR + 16)
 #define ADDR_SETTINGS_SIZE		SETTINGS_BASE_ADDR
-#define ADDR_SETTINGS			(SETTINGS_BASE_ADDR + 8) // Size is written as doubleword, hence +8
+#define ADDR_SETTINGS			(SETTINGS_BASE_ADDR + 8)
 #else
 #endif
 
@@ -159,26 +159,20 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 		return HAL_FLASH_GetError ();
 	}
 
-	// Write ID, FW and Settings Size first if we writing Settings
-	if (EraseInitStruct.Page == SERVICE_PAGE) {
-		uint64_t data = (DEVICE_FW << 32) | DEVICE_ID;
-		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_DEVICE_ID, ((uint64_t)(uintptr_t)&data));
-		if (status != HAL_OK) {
-			return HAL_FLASH_GetError ();
-		}
-	} else {
-		uint32_t size = NUM_OF_SETTINGS;
-		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_SETTINGS_SIZE, ((uint64_t)(uintptr_t)&size));
+	/* Program the settings */
+	for(int i = 0; i < size; ++i) {
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, dest + i*8, ((uint64_t)(uintptr_t)src[i]) );
 		if (status != HAL_OK) {
 			return HAL_FLASH_GetError ();
 		}
 	}
 
-	/* Program the user Flash area (32 row double words todo: check size of settings first) */
-//	int i = NUM_OF_SETTINGS/64
-	status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, dest, ((uint64_t)(uintptr_t)src));
-	if (status != HAL_OK) {
-		return HAL_FLASH_GetError ();
+	// Write Settings Size as well if we writing Settings
+	if (EraseInitStruct.Page == SETTINGS_PAGE) {
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_SETTINGS_SIZE, ((uint64_t)(uintptr_t)size));
+		if (status != HAL_OK) {
+			return HAL_FLASH_GetError ();
+		}
 	}
 
 	/* Lock the Flash */
@@ -222,7 +216,14 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static void flash_read(int* dest, uint32_t src, uint32_t size) {
-	for (int i = 0; i < size; ++i) dest[i] = *( (volatile int*)(src + 4*i) );
+#if (ID1 == 1) || (ID1 == 2)
+	for (int i = 0; i < size; ++i)
+		dest[i] = *( (volatile int*)(src + 4*i) );
+#elif (ID1 == 10)
+	for (int i = 0; i < size; ++i)
+		dest[i] = (int)(*(volatile uint64_t *)(src + 8*i)); // Go to next 8 bytes (doubleword)
+#else
+#endif
 }
 
 /**
@@ -239,9 +240,9 @@ static int flash_check_is_empty(void) {
 	for (int i = 0; i < EEPROM_SIZE/4; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
 #elif (ID1 == 10)
-	int temp_buf[2048] = {0};
-	flash_read(temp_buf, ADDR_SETTINGS, 2048);
-	for (int i = 0; i < 2048; ++i)
+	int temp_buf[NUM_OF_SETTINGS] = {0};
+	flash_read(temp_buf, ADDR_SETTINGS, NUM_OF_SETTINGS);
+	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
 #else
 #endif
@@ -255,7 +256,13 @@ static int flash_check_is_empty(void) {
   * @retval returns 1 if size is 0; 2 if not correct and 0 if OK
   */
 static uint32_t settings_size_read(void) {
+#ifdef STM32L031xx
 	return *( (volatile uint32_t*)ADDR_SETTINGS_SIZE );
+#elif defined(STM32G0B1xx)
+	return *( (volatile uint64_t*)ADDR_SETTINGS_SIZE );
+#else
+	// Some other code
+#endif
 }
 
 /**
@@ -278,7 +285,13 @@ static inline int settings_size_write(int size) {
  * @retval returns 1 if fields are "empty"; 2 if value is not correct; 0 if OK.
  */
 static uint32_t device_id_read(void) {
+#ifdef STM32L031xx
 	return *( (volatile uint32_t*)ADDR_DEVICE_ID );
+#elif defined(STM32G0B1xx)
+	return *( (volatile uint64_t*)ADDR_DEVICE_ID );
+#else
+	// Some other code
+#endif
 }
 
 /**
@@ -286,7 +299,13 @@ static uint32_t device_id_read(void) {
  * @retval returns device firmware version as uint32_t
  */
 static uint32_t device_fw_read(void) {
+#ifdef STM32L031xx
     return *( (volatile uint32_t*)ADDR_DEVICE_FW );
+#elif defined(STM32G0B1xx)
+	return *( (volatile uint64_t*)ADDR_DEVICE_FW );
+#else
+	// Some other code
+#endif
 }
 
 /**
@@ -294,14 +313,14 @@ static uint32_t device_fw_read(void) {
  * @retval returns write results.
  */
 static int device_id_fw_write(void) {
-#ifdef STM32L031xx
+//#ifdef STM32L031xx
 	int data[2] = {((ID1 << 16) | ID2), ((FW1 << 24) | (FW2 << 16) | FW3)};
     return flash_write(ADDR_DEVICE_ID, data, 2);
-#elif defined(STM32G0B1xx)
-    return 0;
-#else
-	// Some other code
-#endif
+//#elif defined(STM32G0B1xx)
+//    return flash_write(ADDR_SETTINGS, temp_buffer, NUM_OF_SETTINGS);
+//#else
+//	// Some other code
+//#endif
 }
 
 // todo: add check as fn
@@ -365,7 +384,6 @@ int settings_write(Setting_TypeDef *s_ptr) {
 	 * Copy from memory to the temp again
 	 * and compare with values in structures
 	 */
-//	memcpy(temp_buffer, (const int*)ADDR_SETTINGS, NUM_OF_SETTINGS*sizeof(int));
 	flash_read(temp_buffer, ADDR_SETTINGS, NUM_OF_SETTINGS);
 
 	for (int i = 0; i < NUM_OF_SETTINGS; ++i) {
