@@ -159,17 +159,29 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 		return HAL_FLASH_GetError ();
 	}
 
-	/* Program the settings */
-	for(int i = 0; i < size; ++i) {
-		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, dest + i*8, ((uint64_t)(uintptr_t)src[i]) );
+	/*
+	 * Write Settings Size as well if we writing Settings
+	 * Or write ID and FW first in case of writing Running Time
+	 */
+	if (EraseInitStruct.Page == SETTINGS_PAGE) {
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_SETTINGS_SIZE, ((uint64_t)(uintptr_t)size));
+		if (status != HAL_OK) {
+			return HAL_FLASH_GetError ();
+		}
+	} else {
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_DEVICE_ID, ((uint64_t)(uintptr_t)DEVICE_ID));
+		if (status != HAL_OK) {
+			return HAL_FLASH_GetError ();
+		}
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_DEVICE_FW, ((uint64_t)(uintptr_t)DEVICE_FW));
 		if (status != HAL_OK) {
 			return HAL_FLASH_GetError ();
 		}
 	}
 
-	// Write Settings Size as well if we writing Settings
-	if (EraseInitStruct.Page == SETTINGS_PAGE) {
-		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, ADDR_SETTINGS_SIZE, ((uint64_t)(uintptr_t)size));
+	/* Program the settings */
+	for(int i = 0; i < size; ++i) {
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, dest + i*8, ((uint64_t)(uintptr_t)src[i]) );
 		if (status != HAL_OK) {
 			return HAL_FLASH_GetError ();
 		}
@@ -313,14 +325,14 @@ static uint32_t device_fw_read(void) {
  * @retval returns write results.
  */
 static int device_id_fw_write(void) {
-//#ifdef STM32L031xx
+#ifdef STM32L031xx
 	int data[2] = {((ID1 << 16) | ID2), ((FW1 << 24) | (FW2 << 16) | FW3)};
     return flash_write(ADDR_DEVICE_ID, data, 2);
-//#elif defined(STM32G0B1xx)
-//    return flash_write(ADDR_SETTINGS, temp_buffer, NUM_OF_SETTINGS);
-//#else
-//	// Some other code
-//#endif
+#elif defined(STM32G0B1xx)
+    return 0;
+#else
+	// Some other code
+#endif
 }
 
 // todo: add check as fn
