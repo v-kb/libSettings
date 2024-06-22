@@ -14,7 +14,7 @@
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
 
-#if (ID1 == 1) || (ID2 == 2)
+#if (ID1 == 1) || (ID1 == 2)
 #define ADDR_DEVICE_ID			USER_DATA_BASEADDR
 #define ADDR_DEVICE_FW			(USER_DATA_BASEADDR + 4)
 #define ADDR_DEVICE_RT			(USER_DATA_BASEADDR + 8)
