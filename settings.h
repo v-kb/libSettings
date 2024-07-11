@@ -44,6 +44,10 @@ typedef enum Settings {
 	BRIGHTNESS_OLED,
 	BRIGHTNESS_MENU,
 	MARK_COLOR,
+#if (ID2 == 4) || (ID2 == 5)
+	CONTRAST,
+	BRIGHTNESS,
+#endif /* (ID2 == 4) || (ID2 == 5) */
 #elif (ID1 == 10)
 	CONTRAST,
 	BRIGHTNESS,
@@ -83,9 +87,6 @@ typedef enum Settings {
 	DISPLAY_GAMMA_ON,
 	DISPLAY_GAMMA_VALUE,
 	DISPLAY_TEST_PATTERN,
-#elif (ID2 == 4) || (ID2 == 5)
-	CONTRAST,
-	BRIGHTNESS,
 #else
 	IDE,
 	QUICK_SIGHTING,
