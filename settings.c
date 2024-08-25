@@ -494,7 +494,7 @@ Settings_Status settings_init(Setting_TypeDef *s_ptr) {
 		previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
 //		status |= RT_NOT_FOUND;
 	} else {							// Save to the new location old RT value
-		rt_time_save();
+		rt_save();
 	}
 
 
@@ -757,17 +757,30 @@ void rt_update(void) {
 	 * (1x60x10 = 600, with rtc_save_counter updates every second)
 	 */
 	if((++save_counter) == 600) {
-		rt_time_save();
+		rt_save();
 		save_counter = 0;
 	}
 }
 
-void rt_time_save(void) {
+void rt_save(void) {
 	current_tick_counter = HAL_GetTick();
 	current_running_time = current_tick_counter/1000;
 //	previous_running_time += current_running_time;
 	uint32_t running_time = previous_running_time + current_running_time;
 	flash_write(ADDR_DEVICE_RT, &running_time, 1);
+}
+
+uint32_t rt_seconds_get(void) {
+	rt_update();
+	return previous_running_time + current_running_time;
+}
+
+uint32_t rt_minutes_get(void) {
+	return rt_seconds_get()/60;
+}
+
+uint32_t rt_hours_get(void) {
+	return rt_seconds_get()/3600;
 }
 
 void HAL_PWR_PVDCallback(void) {
