@@ -3,33 +3,30 @@
 
 #ifdef STM32L031xx
 	#define USER_DATA_BASEADDR		0x08080000
-	#define EEPROM_SIZE				1024		// bytes
+	#define EEPROM_SIZE				1024						// bytes
+	#define ADDR_DEVICE_ID			USER_DATA_BASEADDR
+	#define ADDR_DEVICE_FW			(USER_DATA_BASEADDR + 4)
+	#define ADDR_DEVICE_RT			(USER_DATA_BASEADDR + 8)
+	#define ADDR_SETTINGS_SIZE		(USER_DATA_BASEADDR + 12)
+	#define ADDR_SETTINGS			(USER_DATA_BASEADDR + 16)
 #elif defined(STM32G0B1xx)
 	#define SETTINGS_BASE_ADDR		0x0807F800					// - 0x0807 FFFF, 2KB, Page 383, Bank 2
 	#define SETTINGS_PAGE			383							// Last page
 	#define SERVICE_BASE_ADDR		(SETTINGS_BASE_ADDR - 2048)	// - 0x0807 F7FF, 2KB, Page 382, Bank 2
 	#define SERVICE_PAGE			(SETTINGS_PAGE - 1)			// Last page
 	#define BUFFER_MIN_SIZE			200
+	#define ADDR_DEVICE_ID			SERVICE_BASE_ADDR 			// Everything is written as doublewords (64 bit), so increase by 8 bytes (two ints) to access next parameter
+	#define ADDR_DEVICE_FW			(SERVICE_BASE_ADDR + 8)
+	#define ADDR_DEVICE_RT			(SERVICE_BASE_ADDR + 16)
+	#define ADDR_SETTINGS_SIZE		SETTINGS_BASE_ADDR
+	#define ADDR_SETTINGS			(SETTINGS_BASE_ADDR + 8)
 #else
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
 
 #if (ID1 == 1) || (ID1 == 2)
-#define ADDR_DEVICE_ID			USER_DATA_BASEADDR
-#define ADDR_DEVICE_FW			(USER_DATA_BASEADDR + 4)
-#define ADDR_DEVICE_RT			(USER_DATA_BASEADDR + 8)
-#define ADDR_SETTINGS_SIZE		(USER_DATA_BASEADDR + 12)
-#define ADDR_SETTINGS			(USER_DATA_BASEADDR + 16)
-
 #define ADDR_DEVICE_RT_OLD_1	(USER_DATA_BASEADDR + 16)
 #define ADDR_DEVICE_RT_OLD_2	(USER_DATA_BASEADDR + 64)
-#elif (ID1 == 10)
-#define ADDR_DEVICE_ID			SERVICE_BASE_ADDR // Everything is written as doublewords (64 bit), meaning +8 (two ints)
-#define ADDR_DEVICE_FW			(SERVICE_BASE_ADDR + 8)
-#define ADDR_DEVICE_RT			(SERVICE_BASE_ADDR + 16)
-#define ADDR_SETTINGS_SIZE		SETTINGS_BASE_ADDR
-#define ADDR_SETTINGS			(SETTINGS_BASE_ADDR + 8)
-#else
 #endif
 
 
@@ -42,7 +39,7 @@
 /*
  * DO NOT DELETE FROM CODE!
  * This values for old firmware versions
- * where running time being written at these addresses.
+ * where running time was written at these addresses.
  */
 #ifdef OBSOLETE
 #define EEPROM_BASEADDR		0x08080000
@@ -98,7 +95,7 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	//todo: add various uCs defined by device_id
 	int status = 0;
 
-#ifdef STM32L031xx // For Scope type devices
+#ifdef STM32L031xx
 	/* Erase and programm single word */
 	status = HAL_FLASHEx_DATAEEPROM_Unlock();
 	if (status != HAL_OK) return status;
@@ -113,32 +110,6 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 
 	status += HAL_FLASHEx_DATAEEPROM_Lock();
 
-#elif (DEVICE_ID == 1) || (DEVICE_ID == 2)
-	FLASH_EraseInitTypeDef 	EraseInitStruct;
-	uint32_t 				error;
-
-	/* Unlock the Flash to enable the flash control register access */
-	HAL_FLASH_Unlock();
-
-	/* Fill EraseInit structure*/
-	EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
-	EraseInitStruct.Banks		= FLASH_BANK_2;
-	EraseInitStruct.Page		= page;
-	EraseInitStruct.NbPages     = 1;
-
-	/* Erase the user Flash area*/
-	if (HAL_FLASHEx_Erase(&EraseInitStruct, &error) != HAL_OK) {
-		/*Error occurred while page erase.*/
-		return HAL_FLASH_GetError ();
-	}
-
-	/* Program the user Flash area */
-	if ( HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, addr, ((uint64_t)(uintptr_t)data) ) != HAL_OK) {
-		return HAL_FLASH_GetError ();
-	}
-
-	/* Lock the Flash */
-	HAL_FLASH_Lock();
 #elif defined(STM32G0B1xx)
 	/* Erase and programm the entire page */
 	FLASH_EraseInitTypeDef 	EraseInitStruct;
@@ -190,31 +161,7 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	/* Lock the Flash */
 	status = HAL_FLASH_Lock();
 #else
-//	FLASH_EraseInitTypeDef 	EraseInitStruct;
-//	uint32_t 				error;
-//
-//	/* Unlock the Flash to enable the flash control register access */
-//	HAL_FLASH_Unlock();
-//
-//	/* Fill EraseInit structure*/
-//	EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
-//	EraseInitStruct.Banks		= FLASH_BANK_2;
-//	EraseInitStruct.Page		= page;
-//	EraseInitStruct.NbPages     = 1;
-//
-//	/* Erase the user Flash area*/
-//	if (HAL_FLASHEx_Erase(&EraseInitStruct, &error) != HAL_OK) {
-//		/*Error occurred while page erase.*/
-//		return HAL_FLASH_GetError ();
-//	}
-//
-//	/* Program the user Flash area */
-//	if ( HAL_FLASH_Program(FLASH_TYPEPROGRAM_FAST, addr, ((uint64_t)(uintptr_t)data) ) != HAL_OK) {
-//		return HAL_FLASH_GetError ();
-//	}
-//
-//	/* Lock the Flash */
-//	HAL_FLASH_Lock();
+
 #endif
 
 	return status;
@@ -228,10 +175,10 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static void flash_read(int* dest, uint32_t src, uint32_t size) {
-#if (ID1 == 1) || (ID1 == 2)
+#ifdef STM32L031xx
 	for (int i = 0; i < size; ++i)
 		dest[i] = *( (volatile int*)(src + 4*i) );
-#elif (ID1 == 10)
+#elif defined(STM32G0B1xx)
 	for (int i = 0; i < size; ++i)
 		dest[i] = (int)(*(volatile uint64_t *)(src + 8*i)); // Go to next 8 bytes (doubleword)
 #else
@@ -244,14 +191,14 @@ static void flash_read(int* dest, uint32_t src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static int flash_check_is_empty(void) {
-#if (ID1 == 1) || (ID1 == 2)
+#ifdef STM32L031xx
 	int temp_buf[EEPROM_SIZE/4] = {0};
 
 	flash_read(temp_buf, USER_DATA_BASEADDR, EEPROM_SIZE/4);
 
 	for (int i = 0; i < EEPROM_SIZE/4; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
-#elif (ID1 == 10)
+#elif defined(STM32G0B1xx)
 	int temp_buf[NUM_OF_SETTINGS] = {0};
 	flash_read(temp_buf, ADDR_SETTINGS, NUM_OF_SETTINGS);
 	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
@@ -669,33 +616,6 @@ void settings_value_reset_all(Setting_TypeDef *s_ptr) {
 }
 
 
-
-///**
-// * @brief  Read device running time counter from the FLASH
-// * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
-// */
-//void device_running_time_read(RTC_DateTypeDef *date, RTC_TimeTypeDef *time) {
-//	int temp_buffer[6] = {0};
-//
-//
-//
-////    /* Set correct values */
-////    date->Date 		= temp_buffer[0];
-////    date->Month 	= temp_buffer[1];
-////    date->Year 		= temp_buffer[2];
-////    time->Hours 	= temp_buffer[3];
-////    time->Minutes 	= temp_buffer[4];
-////    time->Seconds 	= temp_buffer[5];
-//}
-
-///**
-// * @brief  Read device running time counter from the FLASH
-// * @retval returns 1 if data is off and 2 if time is off; 0 if OK.
-// */
-//int device_running_time_write(uint32_t *rt) {
-//    return
-//}
-
 #if (ID1 == 1) || (ID1 == 2)
 /**
  * @brief  Read device running time counter from the FLASH
@@ -767,7 +687,7 @@ void rt_save(void) {
 	current_running_time = current_tick_counter/1000;
 //	previous_running_time += current_running_time;
 	uint32_t running_time = previous_running_time + current_running_time;
-	flash_write(ADDR_DEVICE_RT, &running_time, 1);
+	flash_write(ADDR_DEVICE_RT, (int*)&running_time, 1);
 }
 
 uint32_t rt_seconds_get(void) {
