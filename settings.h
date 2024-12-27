@@ -1,7 +1,7 @@
 #ifndef INC_SETTINGS_H_
 #define INC_SETTINGS_H_
 
-#include "version.h"
+//#include "version.h"
 
 #ifdef STM32L031xx
 #include "stm32l0xx_hal.h"
@@ -136,35 +136,38 @@ typedef enum Settings {
 #define IS_EMPTY
 
 typedef struct setting {
-	Settings_IDs 	id;				///< ID as a string to identificate setting in debug - todo: redo with enum?
+	const char* 	name;			///< Name of setting
+//	Settings_IDs 	id;				///< ID as a string to identificate setting in debug - todo: redo with enum?
 	int				val;			///< Actual value of the setting
 	int 			def;			///< Default value for this setting
 	int 			del;			///< Delta for this setting (used as a step to inc/dec value)
 	int				min;			///< Minimum value for this setting
 	int				max;			///< Maximum value for this setting
+	int				is_need_to_save;
+	int				is_change_cyclic;
 } Setting_TypeDef;
 
-extern Setting_TypeDef s_ptr[NUM_OF_SETTINGS];
+extern Setting_TypeDef s_ptr[];
 extern uint8_t settings_save;
 extern uint32_t current_tick_counter; 	// milliseconds
 extern uint32_t current_running_time; 	// seconds
 extern uint32_t previous_running_time;	// seconds
 
 
-Settings_Status settings_init(Setting_TypeDef *s_ptr);
+Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_settings);
 
 void settings_read(Setting_TypeDef *s_ptr);
 int settings_write(Setting_TypeDef *s_ptr);
 
-int settings_value_inc			(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_inc_cyclic	(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_dec			(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_dec_cyclic	(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_tgl			(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_set			(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val);
-int settings_value_set_min		(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_set_max		(Setting_TypeDef *s_ptr, Settings_IDs id);
-int settings_value_reset		(Setting_TypeDef *s_ptr, Settings_IDs id);
+int settings_value_inc			(Setting_TypeDef *s_ptr);
+int settings_value_inc_cyclic	(Setting_TypeDef *s_ptr);
+int settings_value_dec			(Setting_TypeDef *s_ptr);
+int settings_value_dec_cyclic	(Setting_TypeDef *s_ptr);
+int settings_value_tgl			(Setting_TypeDef *s_ptr);
+int settings_value_set			(Setting_TypeDef *s_ptr, int new_val);
+int settings_value_set_min		(Setting_TypeDef *s_ptr);
+int settings_value_set_max		(Setting_TypeDef *s_ptr);
+int settings_value_reset		(Setting_TypeDef *s_ptr);
 void settings_value_reset_all	(Setting_TypeDef *s_ptr);
 void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 

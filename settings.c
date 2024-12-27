@@ -68,18 +68,19 @@
 #define ADDR_TIME (ADDR_DATE + 3*4)			// Offset 3x32bit words from ADDR_DATE
 #endif
 
+#define TEMP_BUF_SIZE		200
 
 
 
 
-
-uint32_t settings_size;
+uint32_t num_of_settings;
 uint32_t device_id;
 uint32_t current_tick_counter; // milliseconds
 uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
 uint8_t settings_save;
 // todo: add statuses in all functions
+
 
 
 /**
@@ -199,9 +200,9 @@ static int flash_check_is_empty(void) {
 	for (int i = 0; i < EEPROM_SIZE/4; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
 #elif defined(STM32G0B1xx)
-	int temp_buf[NUM_OF_SETTINGS] = {0};
-	flash_read(temp_buf, ADDR_SETTINGS, NUM_OF_SETTINGS);
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
+	int temp_buf[num_of_settings] = {0};
+	flash_read(temp_buf, ADDR_SETTINGS, num_of_settings);
+	for (int i = 0; i < num_of_settings; ++i)
 		if (temp_buf[i] != 0) return 0;	// Break on the first non-zero value
 #else
 #endif
@@ -285,7 +286,7 @@ static int device_id_fw_write(void) {
 // todo: add check as fn
 //static uint8_t check_param(void) {
 //	assert_param(s_ptr == NULL);
-//    if(id != s_ptr[id].id) return 0;
+//    if(id != s_ptr->id) return 0;
 //}
 
 
@@ -298,9 +299,9 @@ static uint8_t settings_check_is_valid(Setting_TypeDef *s_ptr) {
 
 	uint8_t non_valid_values = 0;
 
-	for (Settings_IDs id = 0; id < NUM_OF_SETTINGS; ++id) {
-		if(s_ptr[id].val > s_ptr[id].max || s_ptr[id].val < s_ptr[id].min) {
-			s_ptr[id].val = s_ptr[id].def;
+	for (Settings_IDs id = 0; id < num_of_settings; ++id) {
+		if(s_ptr->val > s_ptr->max || s_ptr->val < s_ptr->min) {
+			s_ptr->val = s_ptr->def;
 			++non_valid_values;
 		}
 	}
@@ -310,318 +311,12 @@ static uint8_t settings_check_is_valid(Setting_TypeDef *s_ptr) {
 	return 1;
 }
 
-void settings_read(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-
-	int temp_buffer[NUM_OF_SETTINGS] = {0};
-
-	/* Copy all settings (N x uint32_t) from FLASH to the buffer */
-	flash_read(temp_buffer, ADDR_SETTINGS, NUM_OF_SETTINGS);
-
-	/* Transfer them to the structures */
-	for (Settings_IDs id = 0; id < NUM_OF_SETTINGS; ++id)
-		s_ptr[id].val = temp_buffer[id];
-}
-
-int settings_write(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-
-	int	status = 0;
-	int temp_buffer[NUM_OF_SETTINGS] = {0};
-
-	/* Copy values to the temp buffer */
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i) {
-		temp_buffer[i] = s_ptr[i].val;
-	}
-
-	/* Write from temp buffer to the FLASH memory */
-	status = flash_write(ADDR_SETTINGS, temp_buffer, NUM_OF_SETTINGS);
-	if(status != 0) return status;
-
-	/*
-	 * Check Read:
-	 * Copy from memory to the temp again
-	 * and compare with values in structures
-	 */
-	flash_read(temp_buffer, ADDR_SETTINGS, NUM_OF_SETTINGS);
-
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i) {
-		if (temp_buffer[i] != s_ptr[i].val) ++status;
-	}
-
-	/* If both data match, then status == 0 (everything is ok, return 0) */
-	return status;
-}
-
-
-
-/**
- * @brief  Restore settings from FLASH or set the defaults.
- * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
- */
-Settings_Status settings_init(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-
-	Settings_Status status 					= 0;
-	uint8_t 		restore_defaults_flag 	= 0;
-	uint8_t 		is_have_old_rtc_data 	= 0;
-
-	/*
-	 * Check if all user-defined IDs correspond to predefined enums
-	 */
-	for (Settings_IDs id = 0; id < NUM_OF_SETTINGS; ++id) {
-		if (id != s_ptr[id].id) return SETTINGS_FAIL;
-	}
-
-	/*
-	 * Check if FLASH has any records
-	 */
-	volatile uint8_t is_empty = flash_check_is_empty();
-	if (is_empty) {
-		restore_defaults_flag = 1;
-		status |= FLASH_EMPTY;
-	} else {
-		/*
-		 * Check FW, ID and settings size
-		 * to fit the device type
-		 * and current firmware version
-		 */
-		volatile uint32_t id 	= device_id_read	();
-		volatile uint32_t fw 	= device_fw_read	();
-		volatile uint32_t size 	= settings_size_read();
-
-		if (id == DEVICE_ID && size == NUM_OF_SETTINGS && fw >= DEVICE_FW_MIN) {
-			/*
-			 * Restore settings from FLASH
-			 */
-			settings_read(s_ptr);
-
-			/*
-			 * Correct and rewrite values if some of them are incorrect
-			 */
-			volatile uint8_t is_valid = settings_check_is_valid(s_ptr);
-			if (!is_valid) {
-				restore_defaults_flag = 1;
-				status |= OUT_OF_RANGE;
-			}
-		} else {
-			restore_defaults_flag = 1;
-			status |= (ID_WRONG | SIZE_WRONG);
-
-#if (ID1 == 1 || ID1 == 2) // Only for Scopes and Clip-ons
-			/*
-			 * Search for the saved running time records
-			 * in case FW tells us that it's previous version of firmware
-			 */
-			if (fw < DEVICE_FW_MIN) {
-				is_have_old_rtc_data = device_running_time_check_old();
-				status |= FW_WRONG;
-			}
-#endif
-		}
-	}
-
-	/*
-	 * Set everything to defaults, save and exit (returns 3 write results)
-	 */
-	if (restore_defaults_flag) {
-		settings_value_reset_all(s_ptr);
-
-		int res = 0;
-		res += device_id_fw_write	();
-		res += settings_size_write	(NUM_OF_SETTINGS); // What if size will overlay RTC values?
-		res += settings_write		(s_ptr);
-		if (res > 0) status |= WRITE_FAIL;
-	}
-
-	/*
-	 * Read saved running time in seconds
-	 */
-	if (!is_have_old_rtc_data) {		// Restore previous value to variable
-		previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
-//		status |= RT_NOT_FOUND;
-	} else {							// Save to the new location old RT value
-		rt_save();
-	}
-
-
-	return status;
-};
-
-/**
- * @brief  Increase the value of a setting.
- * @param  id: ID of the setting to increase.
- * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
- */
-int settings_value_inc(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if(id != s_ptr[id].id) return 1;
-
-	int new_val = s_ptr[id].val + s_ptr[id].del;
-
-	if (new_val > s_ptr[id].max) return 2;
-
-	s_ptr[id].val = new_val;
-	return 0;
-}
-
-/**
- * @brief  Increase the value of a setting in cycle.
- * @param  id: ID of the setting to increase.
- * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
- */
-int settings_value_inc_cyclic(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	int new_val = s_ptr[id].val + s_ptr[id].del;
-
-	if (new_val > s_ptr[id].max) new_val = s_ptr[id].min;
-
-	s_ptr[id].val = new_val;
-	return 0;
-}
-
-/**
- * @brief  Decrease the value of a setting.
- * @param  id ID of the setting to decrease.
- * @retval returns 1 if s_ptr is NULL; 2 if new value is out of range, and 0 if OK.
- */
-int settings_value_dec(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	int new_val = s_ptr[id].val - s_ptr[id].del;
-
-	if (new_val < s_ptr[id].min) return 2;
-
-	s_ptr[id].val = new_val;
-	return 0;
-}
-
-/**
- * @brief  Decrease the value of a setting in cycle.
- * @param  id: ID of the setting to increase.
- * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
- */
-int settings_value_dec_cyclic(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	int new_val = s_ptr[id].val - s_ptr[id].del;
-
-	if (new_val < s_ptr[id].min) new_val = s_ptr[id].max;
-
-	s_ptr[id].val = new_val;
-	return 0;
-}
-
-
-/**
- * @brief  Toggle between min and max values of a setting.
- * @param  id: ID of the setting to decrease.
- * @retval returns 1 if s_ptr is NULL; 0 if OK.
- */
-int settings_value_tgl(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	s_ptr[id].val = s_ptr[id].val == s_ptr[id].min ? s_ptr[id].max : s_ptr[id].min;
-
-	return 0;
-}
-
-/**
- * @brief  Set the value of a setting to the specified value.
- * @param  id: ID of the setting to decrease.
- * @param  new_val: New value to be set
- * @retval returns 1 if ID is not found or s_ptr is NULL; 2 new value is out of range, and 0 if OK.
- */
-int settings_value_set(Setting_TypeDef *s_ptr, Settings_IDs id, int new_val) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	if (new_val < s_ptr[id].min || new_val > s_ptr[id].max) return 2;
-
-	s_ptr[id].val = new_val;
-	return 0;
-}
-
-/**
- * @brief  Set settings to it's minimum value.
- * @param  id: ID of the setting to decrease.
- * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
- */
-int settings_value_set_min(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-    if (id != s_ptr[id].id) return 1;
-	s_ptr[id].val = s_ptr[id].min;
-	return 0;
-}
-
-/**
- * @brief  Set settings to it's maximum value.
- * @param  *s_ptr:
- * @param  id: ID of the setting to decrease.
- * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
- */
-int settings_value_set_max(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-    if (id != s_ptr[id].id) return 1;
-	s_ptr[id].val = s_ptr[id].max;
-	return 0;
-}
-
-/**
- * @brief  Resets the value of the specified setting to the default value.
- * @param  *s_ptr:
- * @param  id: ID of the setting to reset.
- * @retval returns 1 if ID is not found; 0 if OK.
- */
-int settings_value_reset(Setting_TypeDef *s_ptr, Settings_IDs id) {
-	assert_param(s_ptr == NULL);
-
-    if (id != s_ptr[id].id) return 1;
-
-	s_ptr[id].val = s_ptr[id].def;
-	return 0;
-}
-
-/**
- * @brief  Sets values in all settings to zero (reset flash).
- * @param  *s_ptr:
- * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
- */
-void settings_value_drop_all(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
-		s_ptr[i].val = -1;
-}
-
-/**
- * @brief  Resets values in all settings.
- * @param  *s_ptr:
- * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
- */
-void settings_value_reset_all(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
-		s_ptr[i].val = s_ptr[i].def;
-}
-
-
 #if (ID1 == 1) || (ID1 == 2)
 /**
  * @brief  Read device running time counter from the FLASH
  * @retval match returns 1 if time records found @ first addr; 2 if @ second; 0 if nothing found.
  */
-int device_running_time_check_old(void) {
+static int device_running_time_check_old(void) {
 	int temp_buffer[6] = {0};
 	int match = 0;
 
@@ -665,6 +360,295 @@ int device_running_time_check_old(void) {
 	return match;
 }
 #endif
+
+void settings_read(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	int temp_buffer[TEMP_BUF_SIZE] = {0};
+
+	/* Copy all settings (N x uint32_t) from FLASH to the buffer */
+	flash_read(temp_buffer, ADDR_SETTINGS, num_of_settings);
+
+	/* Transfer them to the structures */
+	for (Settings_IDs id = 0; id < num_of_settings; ++id)
+		s_ptr->val = temp_buffer[id];
+}
+
+int settings_write(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	int	status = 0;
+	int temp_buffer[TEMP_BUF_SIZE] = {0};
+
+	/* Copy values to the temp buffer */
+	for (int i = 0; i < num_of_settings; ++i) {
+		temp_buffer[i] = s_ptr[i].val;
+	}
+
+	/* Write from temp buffer to the FLASH memory */
+	status = flash_write(ADDR_SETTINGS, temp_buffer, num_of_settings);
+	if(status != 0) return status;
+
+	/*
+	 * Check Read:
+	 * Copy from memory to the temp again
+	 * and compare with values in structures
+	 */
+	flash_read(temp_buffer, ADDR_SETTINGS, num_of_settings);
+
+	for (int i = 0; i < num_of_settings; ++i) {
+		if (temp_buffer[i] != s_ptr[i].val) ++status;
+	}
+
+	/* If both data match, then status == 0 (everything is ok, return 0) */
+	return status;
+}
+
+
+
+/**
+ * @brief  Restore settings from FLASH or set the defaults.
+ * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
+ */
+Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_settings) {
+	assert_param(s_ptr == NULL);
+	assert_param(number_of_settings == 0);
+
+	Settings_Status status 					= 0;
+	uint8_t 		restore_defaults_flag 	= 0;
+	uint8_t 		is_have_old_rtc_data 	= 0;
+	num_of_settings = number_of_settings;
+
+	/*
+	 * Check if FLASH has any records
+	 */
+	volatile uint8_t is_empty = flash_check_is_empty();
+	if (is_empty) {
+		restore_defaults_flag = 1;
+		status |= FLASH_EMPTY;
+	} else {
+		/*
+		 * Check FW, ID and settings size
+		 * to fit the device type
+		 * and current firmware version
+		 */
+		volatile uint32_t id 	= device_id_read	();
+		volatile uint32_t fw 	= device_fw_read	();
+		volatile uint32_t size 	= settings_size_read();
+
+		if (id == DEVICE_ID && size == num_of_settings && fw >= DEVICE_FW_MIN) {
+			/*
+			 * Restore settings from FLASH
+			 */
+			settings_read(s_ptr);
+
+			/*
+			 * Correct and rewrite values if some of them are incorrect
+			 */
+			volatile uint8_t is_valid = settings_check_is_valid(s_ptr);
+			if (!is_valid) {
+				restore_defaults_flag = 1;
+				status |= OUT_OF_RANGE;
+			}
+		} else {
+			restore_defaults_flag = 1;
+			status |= (ID_WRONG | SIZE_WRONG);
+
+#if (ID1 == 1 || ID1 == 2) // Only for Scopes and Clip-ons
+			/*
+			 * Search for the saved running time records
+			 * in case FW tells us that it's previous version of firmware
+			 */
+			if (fw < DEVICE_FW_MIN) {
+				is_have_old_rtc_data = device_running_time_check_old();
+				status |= FW_WRONG;
+			}
+#endif
+		}
+	}
+
+	/*
+	 * Set everything to defaults, save and exit (returns 3 write results)
+	 */
+	if (restore_defaults_flag) {
+		settings_value_reset_all(s_ptr);
+
+		int res = 0;
+		res += device_id_fw_write	();
+		res += settings_size_write	(num_of_settings); // What if size will overlay RTC values?
+		res += settings_write		(s_ptr);
+		if (res > 0) status |= WRITE_FAIL;
+	}
+
+	/*
+	 * Read saved running time in seconds
+	 */
+	if (!is_have_old_rtc_data) {		// Restore previous value to variable
+		previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
+//		status |= RT_NOT_FOUND;
+	} else {							// Save to the new location old RT value
+		rt_save();
+	}
+
+
+	return status;
+};
+
+/**
+ * @brief  Increase the value of a setting.
+ * @param  id: ID of the setting to increase.
+ * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
+ */
+int settings_value_inc(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	int new_val = s_ptr->val + s_ptr->del;
+
+	if (new_val > s_ptr->max) return 2;
+
+	s_ptr->val = new_val;
+	return 0;
+}
+
+/**
+ * @brief  Increase the value of a setting in cycle.
+ * @param  id: ID of the setting to increase.
+ * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
+ */
+int settings_value_inc_cyclic(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	int new_val = s_ptr->val + s_ptr->del;
+
+	if (new_val > s_ptr->max) new_val = s_ptr->min;
+
+	s_ptr->val = new_val;
+	return 0;
+}
+
+/**
+ * @brief  Decrease the value of a setting.
+ * @param  id ID of the setting to decrease.
+ * @retval returns 1 if s_ptr is NULL; 2 if new value is out of range, and 0 if OK.
+ */
+int settings_value_dec(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	int new_val = s_ptr->val - s_ptr->del;
+
+	if (new_val < s_ptr->min) return 2;
+
+	s_ptr->val = new_val;
+	return 0;
+}
+
+/**
+ * @brief  Decrease the value of a setting in cycle.
+ * @param  id: ID of the setting to increase.
+ * @retval returns 1 if s_ptr is NULL or ID is wrong; 2 if new value is out of range, and 0 if OK.
+ */
+int settings_value_dec_cyclic(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+
+	int new_val = s_ptr->val - s_ptr->del;
+
+	if (new_val < s_ptr->min) new_val = s_ptr->max;
+
+	s_ptr->val = new_val;
+	return 0;
+}
+
+
+/**
+ * @brief  Toggle between min and max values of a setting.
+ * @param  id: ID of the setting to decrease.
+ * @retval returns 1 if s_ptr is NULL; 0 if OK.
+ */
+int settings_value_tgl(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+
+	s_ptr->val = s_ptr->val == s_ptr->min ? s_ptr->max : s_ptr->min;
+
+	return 0;
+}
+
+/**
+ * @brief  Set the value of a setting to the specified value.
+ * @param  id: ID of the setting to decrease.
+ * @param  new_val: New value to be set
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 2 new value is out of range, and 0 if OK.
+ */
+int settings_value_set(Setting_TypeDef *s_ptr, int new_val) {
+	assert_param(s_ptr == NULL);
+
+	if (new_val < s_ptr->min || new_val > s_ptr->max) return 2;
+
+	s_ptr->val = new_val;
+	return 0;
+}
+
+/**
+ * @brief  Set settings to it's minimum value.
+ * @param  id: ID of the setting to decrease.
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
+ */
+int settings_value_set_min(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+	s_ptr->val = s_ptr->min;
+	return 0;
+}
+
+/**
+ * @brief  Set settings to it's maximum value.
+ * @param  *s_ptr:
+ * @param  id: ID of the setting to decrease.
+ * @retval returns 1 if ID is not found or s_ptr is NULL; 0 if OK.
+ */
+int settings_value_set_max(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+	s_ptr->val = s_ptr->max;
+	return 0;
+}
+
+/**
+ * @brief  Resets the value of the specified setting to the default value.
+ * @param  *s_ptr:
+ * @param  id: ID of the setting to reset.
+ * @retval returns 1 if ID is not found; 0 if OK.
+ */
+int settings_value_reset(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+
+	s_ptr->val = s_ptr->def;
+	return 0;
+}
+
+/**
+ * @brief  Sets values in all settings to zero (reset flash).
+ * @param  *s_ptr:
+ * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
+ */
+void settings_value_drop_all(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+	for (int i = 0; i < num_of_settings; ++i)
+		s_ptr[i].val = -1;
+}
+
+/**
+ * @brief  Resets values in all settings.
+ * @param  *s_ptr:
+ * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
+ */
+void settings_value_reset_all(Setting_TypeDef *s_ptr) {
+	assert_param(s_ptr == NULL);
+	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
+		s_ptr[i].val = s_ptr[i].def;
+}
+
+
+
 
 
 void rt_update(void) {
