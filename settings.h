@@ -2,16 +2,18 @@
 #define INC_SETTINGS_H_
 
 //#include "version.h"
+#include <string.h>
+#include "main.h"
 
-#ifdef STM32L031xx
-#include "stm32l0xx_hal.h"
-#elif defined(STM32L071xx)
-// For STM32L071
-#elif defined(STM32G0B1xx)
-#include "stm32g0xx_hal.h"
-#else
-// For STM32L031
-#endif
+//#ifdef STM32L031xx
+//#include "stm32l0xx_hal.h"
+//#elif defined(STM32L071xx)
+//// For STM32L071
+//#elif defined(STM32G0B1xx)
+//#include "stm32g0xx_hal.h"
+//#else
+//// For STM32L031
+//#endif
 
 // todo: drop some of this values as they are not needed
 typedef enum Status {
@@ -149,6 +151,7 @@ typedef struct setting {
 
 extern Setting_TypeDef s_ptr[];
 extern uint8_t settings_save;
+extern uint8_t save_running_time;
 extern uint32_t current_tick_counter; 	// milliseconds
 extern uint32_t current_running_time; 	// seconds
 extern uint32_t previous_running_time;	// seconds
@@ -167,8 +170,8 @@ int settings_value_tgl			(Setting_TypeDef *s_ptr);
 int settings_value_set			(Setting_TypeDef *s_ptr, int new_val);
 int settings_value_set_min		(Setting_TypeDef *s_ptr);
 int settings_value_set_max		(Setting_TypeDef *s_ptr);
-int settings_value_reset		(Setting_TypeDef *s_ptr);
-void settings_value_reset_all	(Setting_TypeDef *s_ptr);
+int settings_value_set_def		(Setting_TypeDef *s_ptr);
+void settings_value_set_def_all	(Setting_TypeDef *s_ptr);
 void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 
 //int device_running_time_check_old	(void);

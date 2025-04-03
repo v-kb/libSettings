@@ -1,4 +1,3 @@
-#include <string.h>
 #include "settings.h"
 
 #ifdef STM32L031xx
@@ -80,6 +79,7 @@ uint32_t current_tick_counter; // milliseconds
 uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
 uint8_t settings_save;
+uint8_t save_running_time;
 // todo: add statuses in all functions
 
 
@@ -372,7 +372,7 @@ void settings_read(Setting_TypeDef *s_ptr) {
 
 	/* Transfer them to the structures */
 	for (Settings_IDs id = 0; id < num_of_settings; ++id)
-		s_ptr->val = temp_buffer[id];
+		s_ptr[id].val = temp_buffer[id];
 }
 
 int settings_write(Setting_TypeDef *s_ptr) {
@@ -472,7 +472,7 @@ Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_setting
 	 * Set everything to defaults, save and exit (returns 3 write results)
 	 */
 	if (restore_defaults_flag) {
-		settings_value_reset_all(s_ptr);
+		settings_value_set_def_all(s_ptr);
 
 		int res = 0;
 		res += device_id_fw_write	();
@@ -488,7 +488,7 @@ Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_setting
 		previous_running_time = *( (volatile uint32_t*)ADDR_DEVICE_RT );
 //		status |= RT_NOT_FOUND;
 	} else {							// Save to the new location old RT value
-		rt_save();
+		running_time_save();
 	}
 
 
@@ -619,7 +619,7 @@ int settings_value_set_max(Setting_TypeDef *s_ptr) {
  * @param  id: ID of the setting to reset.
  * @retval returns 1 if ID is not found; 0 if OK.
  */
-int settings_value_reset(Setting_TypeDef *s_ptr) {
+int settings_value_set_def(Setting_TypeDef *s_ptr) {
 	assert_param(s_ptr == NULL);
 
 	s_ptr->val = s_ptr->def;
@@ -642,10 +642,9 @@ void settings_value_drop_all(Setting_TypeDef *s_ptr) {
  * @param  *s_ptr:
  * @retval returns -2 if ID is not found; -1 if s_ptr is NULL; 0 if OK.
  */
-void settings_value_reset_all(Setting_TypeDef *s_ptr) {
-	assert_param(s_ptr == NULL);
-	for (int i = 0; i < NUM_OF_SETTINGS; ++i)
-		s_ptr[i].val = s_ptr[i].def;
+void settings_value_set_def_all(Setting_TypeDef *s_ptr) {
+	for (int i = 0; i < num_of_settings; ++i)
+		settings_value_set_def(&s_ptr[i]);
 }
 
 
