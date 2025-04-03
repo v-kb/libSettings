@@ -75,6 +75,7 @@
 
 uint32_t num_of_settings;
 uint32_t device_id;
+uint32_t running_time;
 uint32_t current_tick_counter; // milliseconds
 uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
@@ -648,50 +649,25 @@ void settings_value_reset_all(Setting_TypeDef *s_ptr) {
 }
 
 
-
-
-
-void rt_update(void) {
-	static uint16_t save_counter = 0;
-
+void running_time_update(void) {
 	current_tick_counter = HAL_GetTick();
-	current_running_time = current_tick_counter/1000;
-	/*
-	 * Add 1 second to counter and check for counting 10 minutes
-	 * (1x60x10 = 600, with rtc_save_counter updates every second)
-	 */
-	if((++save_counter) == 600) {
-		rt_save();
-		save_counter = 0;
-	}
+	current_running_time = current_tick_counter/1000; // speed up to 60 -> every second "add 1 minute"
+	running_time = previous_running_time + current_running_time;
 }
 
-void rt_save(void) {
-	current_tick_counter = HAL_GetTick();
-	current_running_time = current_tick_counter/1000;
-//	previous_running_time += current_running_time;
-	uint32_t running_time = previous_running_time + current_running_time;
+void running_time_save(void) {
 	flash_write(ADDR_DEVICE_RT, (int*)&running_time, 1);
 }
 
-uint32_t rt_seconds_get(void) {
-	rt_update();
+uint32_t running_time_get_s(void) {
+	running_time_update();
 	return previous_running_time + current_running_time;
 }
 
-uint32_t rt_minutes_get(void) {
-	return rt_seconds_get()/60;
+uint32_t running_time_get_m(void) {
+	return running_time_get_s()/60;
 }
 
-uint32_t rt_hours_get(void) {
-	return rt_seconds_get()/3600;
-}
-
-void HAL_PWR_PVDCallback(void) {
-	static uint8_t done = 0;
-
-	if(!done) {
-//		settings_write_running_time(&date, &time);
-		done = 1;
-	}
+uint32_t running_time_get_h(void) {
+	return running_time_get_s()/3600;
 }

@@ -172,12 +172,11 @@ void settings_value_reset_all	(Setting_TypeDef *s_ptr);
 void settings_value_drop_all	(Setting_TypeDef *s_ptr);
 
 //int device_running_time_check_old	(void);
-void rt_update			(void);
-void rt_save			(void);
-uint32_t rt_tick_get	(void);
-uint32_t rt_seconds_get	(void);
-uint32_t rt_minutes_get	(void);
-uint32_t rt_hours_get	(void);
+void running_time_update		(void);
+void running_time_save			(void);
+uint32_t running_time_get_s		(void);
+uint32_t running_time_get_m		(void);
+uint32_t running_time_get_h		(void);
 
 
 #endif /* INC_SETTINGS_H_ */
