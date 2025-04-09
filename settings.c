@@ -1,6 +1,6 @@
 #include "settings.h"
 
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	#define USER_DATA_BASEADDR		0x08080000
 	#define EEPROM_SIZE				1024						// bytes
 	#define ADDR_DEVICE_ID			USER_DATA_BASEADDR
@@ -97,7 +97,7 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
 	//todo: add various uCs defined by device_id
 	int status = 0;
 
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	/* Erase and programm single word */
 	status = HAL_FLASHEx_DATAEEPROM_Unlock();
 	if (status != HAL_OK) return status;
@@ -177,7 +177,7 @@ static int flash_write(uint32_t dest, int* src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static void flash_read(int* dest, uint32_t src, uint32_t size) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	for (int i = 0; i < size; ++i)
 		dest[i] = *( (volatile int*)(src + 4*i) );
 #elif defined(STM32G0B1xx)
@@ -193,7 +193,7 @@ static void flash_read(int* dest, uint32_t src, uint32_t size) {
   * @note   This function todo: MIGHT BE for various uCs.
   */
 static int flash_check_is_empty(void) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	int temp_buf[EEPROM_SIZE/4] = {0};
 
 	flash_read(temp_buf, USER_DATA_BASEADDR, EEPROM_SIZE/4);
@@ -217,7 +217,7 @@ static int flash_check_is_empty(void) {
   * @retval returns 1 if size is 0; 2 if not correct and 0 if OK
   */
 static uint32_t settings_size_read(void) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	return *( (volatile uint32_t*)ADDR_SETTINGS_SIZE );
 #elif defined(STM32G0B1xx)
 	return *( (volatile uint64_t*)ADDR_SETTINGS_SIZE );
@@ -231,7 +231,7 @@ static uint32_t settings_size_read(void) {
   * @retval returns 1 if size is not correct and 0 if OK
   */
 static inline int settings_size_write(int size) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	return flash_write(ADDR_SETTINGS_SIZE, &size, 1);
 #elif defined(STM32G0B1xx)
 	// As we can not program word by word and only can program empty flash it needs to be checked first.
@@ -246,7 +246,7 @@ static inline int settings_size_write(int size) {
  * @retval returns 1 if fields are "empty"; 2 if value is not correct; 0 if OK.
  */
 static uint32_t device_id_read(void) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	return *( (volatile uint32_t*)ADDR_DEVICE_ID );
 #elif defined(STM32G0B1xx)
 	return *( (volatile uint64_t*)ADDR_DEVICE_ID );
@@ -260,7 +260,7 @@ static uint32_t device_id_read(void) {
  * @retval returns device firmware version as uint32_t
  */
 static uint32_t device_fw_read(void) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
     return *( (volatile uint32_t*)ADDR_DEVICE_FW );
 #elif defined(STM32G0B1xx)
 	return *( (volatile uint64_t*)ADDR_DEVICE_FW );
@@ -274,7 +274,7 @@ static uint32_t device_fw_read(void) {
  * @retval returns write results.
  */
 static int device_id_fw_write(void) {
-#ifdef STM32L031xx
+#if defined(STM32L031xx) || defined(STM32L071xx)
 	int data[2] = {((ID1 << 16) | ID2), ((FW1 << 24) | (FW2 << 16) | FW3)};
     return flash_write(ADDR_DEVICE_ID, data, 2);
 #elif defined(STM32G0B1xx)
