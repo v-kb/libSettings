@@ -38,7 +38,7 @@ typedef enum Settings {
 	MARK_BRIGHTNESS,
 	MENU_BRIGHTNESS,
 	DISP_BRIGHTNESS,
-#elif (ID1 == 2)
+#elif defined(ITP_34)
 	MARK_TYPE,
 	AMMO_TYPE,
 	EYE_SENSOR_EN,
@@ -46,10 +46,10 @@ typedef enum Settings {
 	BRIGHTNESS_OLED,
 	BRIGHTNESS_MENU,
 	MARK_COLOR,
-#if (ID2 == 4) || (ID2 == 5)
+	#if FW == 19 || FW == 20
 	CONTRAST,
 	BRIGHTNESS,
-#endif /* (ID2 == 4) || (ID2 == 5) */
+	#endif /* FW == 19 || FW == 20 */
 #elif (ID1 == 10)
 	CONTRAST,
 	BRIGHTNESS,
