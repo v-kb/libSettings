@@ -30,7 +30,7 @@ typedef enum Status {
 } Settings_Status;
 
 typedef enum Settings {
-#if (ID1 == 1) // For Scope type devices
+#if ID1 == 1 // For Scope type devices
 	IDE,
 	QUICK_SIGHTING,
 	AUTO_INVERSION,
@@ -38,7 +38,7 @@ typedef enum Settings {
 	MARK_BRIGHTNESS,
 	MENU_BRIGHTNESS,
 	DISP_BRIGHTNESS,
-#elif defined(ITP_34)
+#elif ID1 == 2 // Clip-ons and Rifles
 	MARK_TYPE,
 	AMMO_TYPE,
 	EYE_SENSOR_EN,
@@ -46,7 +46,7 @@ typedef enum Settings {
 	BRIGHTNESS_OLED,
 	BRIGHTNESS_MENU,
 	MARK_COLOR,
-	#if FW == 19 || FW == 20
+	#if FW == 19 || FW == 20 // Experimental Rifles
 	CONTRAST,
 	BRIGHTNESS,
 	#endif /* FW == 19 || FW == 20 */
