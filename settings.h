@@ -31,9 +31,13 @@ typedef enum Status {
 
 typedef enum Settings {
 #if ID1 == 1 // For Scope type devices
+	IMAGE_ZOOM,
+	IMAGE_PALETTE,
+	IMAGE_BRIGHTNESS,
 	IDE,
 	QUICK_SIGHTING,
 	AUTO_INVERSION,
+	MARK_TYPE,
 	MARK_COLOR,
 	MARK_BRIGHTNESS,
 	BRIGHTNESS_GUI,
