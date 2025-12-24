@@ -33,6 +33,7 @@ typedef enum Settings {
 #if ID1 == 1 // For Scope type devices
 	IMAGE_ZOOM,
 	IMAGE_PALETTE,
+	IMAGE_CONTRAST,
 	IMAGE_BRIGHTNESS,
 	IDE,
 	QUICK_SIGHTING,
