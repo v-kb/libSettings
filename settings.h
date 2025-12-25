@@ -1,8 +1,7 @@
 #ifndef INC_SETTINGS_H_
 #define INC_SETTINGS_H_
 
-#include <string.h>
-#include "main.h"
+#include <stdint.h>
 
 // todo: drop some of this values as they are not needed
 typedef enum Status {
@@ -24,9 +23,17 @@ typedef struct setting {
 	int 			del;			///< Delta for this setting (used as a step to inc/dec value)
 	int				min;			///< Minimum value for this setting
 	int				max;			///< Maximum value for this setting
-	int				is_need_to_save;
+	int				is_need_to_save;///<
 	int				is_change_cyclic;
 } Setting_TypeDef;
+
+typedef struct Settings Settings;
+struct Settings {
+	Settings_Status (*mem_write)(Setting_TypeDef* const me);
+	int				(*mem_read)(Setting_TypeDef* const me);
+	Setting_TypeDef* settings_list;
+	int				settings_num;
+};
 
 extern Setting_TypeDef s_ptr[];
 extern uint8_t settings_save;
