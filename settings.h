@@ -1,19 +1,8 @@
 #ifndef INC_SETTINGS_H_
 #define INC_SETTINGS_H_
 
-//#include "version.h"
 #include <string.h>
 #include "main.h"
-
-//#ifdef STM32L031xx
-//#include "stm32l0xx_hal.h"
-//#elif defined(STM32L071xx)
-//// For STM32L071
-//#elif defined(STM32G0B1xx)
-//#include "stm32g0xx_hal.h"
-//#else
-//// For STM32L031
-//#endif
 
 // todo: drop some of this values as they are not needed
 typedef enum Status {
@@ -29,10 +18,7 @@ typedef enum Status {
 	WRITE_FAIL		= 256	// 0b0000000100000000
 } Settings_Status;
 
-
 typedef struct setting {
-	const char* 	name;			///< Name of setting
-//	Settings_IDs 	id;				///< ID as a string to identificate setting in debug - todo: redo with enum?
 	int				val;			///< Actual value of the setting
 	int 			def;			///< Default value for this setting
 	int 			del;			///< Delta for this setting (used as a step to inc/dec value)
