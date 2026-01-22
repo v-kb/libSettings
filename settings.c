@@ -23,66 +23,30 @@
 	#define USER_DATA_BASEADDR		0x08080000	// For STM32L031
 #endif
 
-#if (ID1 == 1) || (ID1 == 2)
-#define ADDR_DEVICE_RT_OLD_1	(USER_DATA_BASEADDR + 16)
-#define ADDR_DEVICE_RT_OLD_2	(USER_DATA_BASEADDR + 64)
-#endif
-
-
-#define DEVICE_ID 				((ID1 << 16) | ID2)
-#define DEVICE_FW 				((FW1 << 24) | (FW2 << 16) | FW3)
-#define DEVICE_ID_MIN 			(1 << 16)	// Minimum value for ID is 0x00010000
-#define DEVICE_FW_MIN 			(1 << 24)	// Minimum value for FW is 0x01000000
-
-
-/*
- * DO NOT DELETE FROM CODE!
- * This values for old firmware versions
- * where running time was written at these addresses.
- */
-#ifdef OBSOLETE
-#define EEPROM_BASEADDR		0x08080000
-
-#define ADDR_IDE				((uint32_t)(EEPROM_BASEADDR + 0))
-#define ADDR_QUICK_SIGHTING		((uint32_t)(EEPROM_BASEADDR + 4))
-#define ADDR_AUTO_INVERSION		((uint32_t)(EEPROM_BASEADDR + 8))
-#define ADDR_AR_COLOR			((uint32_t)(EEPROM_BASEADDR + 12))
-#define ADDR_AR_BRIGHTNESS		((uint32_t)(EEPROM_BASEADDR + 16))
-
-#define ADDR_MARK				(EEPROM_BASEADDR + 0)
-#define ADDR_AMMO				(EEPROM_BASEADDR + 4)
-#define ADDR_EYE_SENSOR			(EEPROM_BASEADDR + 8)
-#define ADDR_EYE_SENSOR_VALUE	(EEPROM_BASEADDR + 12)
-
-// On Clip-ons (Starting from Commits on Oct 21, 2022 "Added running time counter every 10s and on power off")
-// It is only for Experimental type devices!
-#define ADDR_DATE (EEPROM_BASEADDR + 16)
-
-// On Scopes (Starting from Commits on Oct 27, 2022 "Added RTC to count and save running time")
-#define ADDR_DATE (EEPROM_BASEADDR + 16)
-// On Scopes (Starting from Commits on Feb 16, 2023 "Changed max mark brightness level to 5")
-#define ADDR_DATE (EEPROM_BASEADDR + 64)	// To save month, date and year (all of them are uint8_t)
-
-
-#define ADDR_TIME (ADDR_DATE + 3*4)			// Offset 3x32bit words from ADDR_DATE
-#endif
-
-#define TEMP_BUF_SIZE		200
 
 
 
-
-uint32_t num_of_settings;
 uint32_t device_id;
 uint32_t running_time;
 uint32_t current_tick_counter; // milliseconds
 uint32_t previous_running_time; // seconds
 uint32_t current_running_time; // seconds
-uint8_t settings_save;
 uint8_t save_running_time;
 // todo: add statuses in all functions
 
+static int Setting_Write(Setting* const me) {
+	int data[4] = {me->val, me->id, 1, 2};
+	mem_write(data, sizeof(data));
+}
 
+void Setting_Init(Setting* const me, int (*readFunc)(Setting* const me)) {
+	me->read = readFunc;
+}
+
+void Setting_Create(Setting* const me) {
+	Setting_Init(me, Setting_Read, Setting_Write);
+	return me;
+}
 
 /**
   * @brief  Writes user array to the specified FLASH memory address.
