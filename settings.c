@@ -301,8 +301,8 @@ static uint8_t settings_check_is_valid(Setting_TypeDef *s_ptr) {
 	uint8_t non_valid_values = 0;
 
 	for (Settings_IDs id = 0; id < num_of_settings; ++id) {
-		if(s_ptr->val > s_ptr->max || s_ptr->val < s_ptr->min) {
-			s_ptr->val = s_ptr->def;
+		if(s_ptr[id].val > s_ptr[id].max || s_ptr[id].val < s_ptr[id].min) {
+			s_ptr[id].val = s_ptr[id].def;
 			++non_valid_values;
 		}
 	}
