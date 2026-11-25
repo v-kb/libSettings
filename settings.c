@@ -437,7 +437,7 @@ Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_setting
 		volatile uint32_t fw 	= device_fw_read	();
 		volatile uint32_t size 	= settings_size_read();
 
-		if (id == DEVICE_ID && size == num_of_settings && fw >= DEVICE_FW_MIN) {
+		if (id == DEVICE_ID && fw == DEVICE_FW) {
 			/*
 			 * Restore settings from FLASH
 			 */
@@ -453,7 +453,7 @@ Settings_Status settings_init(Setting_TypeDef *s_ptr, uint16_t number_of_setting
 			}
 		} else {
 			restore_defaults_flag = 1;
-			status |= (ID_WRONG | SIZE_WRONG);
+			status |= (ID_WRONG | FW_WRONG);
 
 #if (ID1 == 1 || ID1 == 2) // Only for Scopes and Clip-ons
 			/*
